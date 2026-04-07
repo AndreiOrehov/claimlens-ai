@@ -386,21 +386,35 @@ export function buildPricingContext(type, options) {
     const cls = getVehicleClass(make, model);
     const clsLabel = { economy: "Economy", midsize: "Mid-size", luxury: "Luxury", truck_suv: "Truck/SUV" }[cls];
 
+    const sourceLabel = options.freshPricing?.source === "live"
+      ? "[Live pricing from Google Search]"
+      : `[Reference pricing database, last updated ${PRICING_LAST_UPDATED}]`;
+
     let lines = [
-      `\n--- PRICING REFERENCE DATA (${state.label}, ${clsLabel} class) ---`,
-      `State avg body shop labor rate: $${state.autoLaborRate}/hr`,
+      `\n--- PRICING REFERENCE DATA (${state.label}, ${clsLabel} class) ${sourceLabel} ---`,
+      `State avg body shop labor rate: $${options.freshPricing?.labor_rate_per_hour || state.autoLaborRate}/hr`,
       `Vehicle class: ${clsLabel}`,
       ``,
       `Component costs (parts+labor, USD):`,
       `Component | Repair Range | Replace Range | Labor Hours`,
     ];
 
-    for (const [key, data] of Object.entries(AUTO_PARTS_PRICING)) {
-      const d = data[cls];
-      const name = key.replace(/_/g, " ");
-      const rep = d.repair[0] !== null ? `$${d.repair[0]}-$${d.repair[1]}` : "N/A";
-      const repl = d.replace[0] !== null ? `$${d.replace[0]}-$${d.replace[1]}` : "N/A";
-      lines.push(`${name} | ${rep} | ${repl} | ${d.labor_hours[0]}-${d.labor_hours[1]}h`);
+    if (options.freshPricing?.components) {
+      for (const [key, d] of Object.entries(options.freshPricing.components)) {
+        const name = key.replace(/_/g, " ");
+        const rep = d.repair?.[0] != null ? `$${d.repair[0]}-$${d.repair[1]}` : "N/A";
+        const repl = d.replace?.[0] != null ? `$${d.replace[0]}-$${d.replace[1]}` : "N/A";
+        const hours = d.labor_hours ? `${d.labor_hours[0]}-${d.labor_hours[1]}h` : "—";
+        lines.push(`${name} | ${rep} | ${repl} | ${hours}`);
+      }
+    } else {
+      for (const [key, data] of Object.entries(AUTO_PARTS_PRICING)) {
+        const d = data[cls];
+        const name = key.replace(/_/g, " ");
+        const rep = d.repair[0] !== null ? `$${d.repair[0]}-$${d.repair[1]}` : "N/A";
+        const repl = d.replace[0] !== null ? `$${d.replace[0]}-$${d.replace[1]}` : "N/A";
+        lines.push(`${name} | ${rep} | ${repl} | ${d.labor_hours[0]}-${d.labor_hours[1]}h`);
+      }
     }
     lines.push(`\nUse these as baseline. Adjust within reason for specific damage severity and circumstances.`);
     return lines.join("\n");
@@ -411,25 +425,41 @@ export function buildPricingContext(type, options) {
     const mult = state.propertyMultiplier;
     const relevant = getRelevantPropertyItems(area, cause);
 
+    const sourceLabel = options.freshPricing?.source === "live"
+      ? "[Live pricing from Google Search]"
+      : `[Reference pricing database, last updated ${PRICING_LAST_UPDATED}]`;
+
     let lines = [
-      `\n--- PRICING REFERENCE DATA (${state.label}, multiplier: ${mult}x) ---`,
-      `All costs below are national averages. Multiply by ${mult} for ${state.label} pricing.`,
+      `\n--- PRICING REFERENCE DATA (${state.label}, multiplier: ${mult}x) ${sourceLabel} ---`,
       ``,
       `Relevant repair costs:`,
       `Work Type | Unit | Materials | Labor | Total/Unit | Notes`,
     ];
 
-    for (const key of relevant) {
-      const d = PROPERTY_PRICING[key];
-      if (!d) continue;
-      const matLo = (d.materials[0] * mult).toFixed(2);
-      const matHi = (d.materials[1] * mult).toFixed(2);
-      const labLo = (d.labor[0] * mult).toFixed(2);
-      const labHi = (d.labor[1] * mult).toFixed(2);
-      const totLo = ((d.materials[0] + d.labor[0]) * mult).toFixed(2);
-      const totHi = ((d.materials[1] + d.labor[1]) * mult).toFixed(2);
-      const name = key.replace(/_/g, " ");
-      lines.push(`${name} | per ${d.unit} | $${matLo}-$${matHi} | $${labLo}-$${labHi} | $${totLo}-$${totHi} | ${d.notes}`);
+    if (options.freshPricing?.components) {
+      for (const [key, d] of Object.entries(options.freshPricing.components)) {
+        const name = key.replace(/_/g, " ");
+        const matLo = d.materials?.[0]?.toFixed(2) || "?";
+        const matHi = d.materials?.[1]?.toFixed(2) || "?";
+        const labLo = d.labor?.[0]?.toFixed(2) || "?";
+        const labHi = d.labor?.[1]?.toFixed(2) || "?";
+        const totLo = (d.materials?.[0] + d.labor?.[0])?.toFixed(2) || "?";
+        const totHi = (d.materials?.[1] + d.labor?.[1])?.toFixed(2) || "?";
+        lines.push(`${name} | per ${d.unit || "unit"} | $${matLo}-$${matHi} | $${labLo}-$${labHi} | $${totLo}-$${totHi} | ${d.notes || ""}`);
+      }
+    } else {
+      for (const key of relevant) {
+        const d = PROPERTY_PRICING[key];
+        if (!d) continue;
+        const matLo = (d.materials[0] * mult).toFixed(2);
+        const matHi = (d.materials[1] * mult).toFixed(2);
+        const labLo = (d.labor[0] * mult).toFixed(2);
+        const labHi = (d.labor[1] * mult).toFixed(2);
+        const totLo = ((d.materials[0] + d.labor[0]) * mult).toFixed(2);
+        const totHi = ((d.materials[1] + d.labor[1]) * mult).toFixed(2);
+        const name = key.replace(/_/g, " ");
+        lines.push(`${name} | per ${d.unit} | $${matLo}-$${matHi} | $${labLo}-$${labHi} | $${totLo}-$${totHi} | ${d.notes}`);
+      }
     }
     lines.push(`\nUse these as baseline. Adjust for specific damage extent and property characteristics.`);
     return lines.join("\n");
