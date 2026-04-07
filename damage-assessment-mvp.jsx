@@ -657,13 +657,38 @@ ENGINE (if visible): engine compartment, visible mechanical damage.
 For each zone: if damaged → add to damages array. If intact/not visible → skip. Do NOT guess.` : ""}
 ${type === "property" ? `
 MANDATORY INSPECTION CHECKLIST — you MUST check EVERY zone below:
-ROOF: shingles, flashing, gutters, soffit, fascia.
-EXTERIOR WALLS: siding, stucco, brick, paint, trim.
-WINDOWS & DOORS: all visible windows, entry doors, garage door.
-INTERIOR (if visible): walls, ceilings, floors, baseboards, crown molding.
-SYSTEMS (if visible): electrical, plumbing, HVAC.
-STRUCTURAL (if visible): foundation, framing, load-bearing walls.
-For each zone: if damaged → add to damages array. If intact/not visible → skip. Do NOT guess.` : ""}
+ROOF: shingles/tiles, flashing, gutters, soffit, fascia, roof decking.
+EXTERIOR WALLS: siding, stucco, brick, paint, trim, weatherproofing.
+WINDOWS & DOORS: all visible windows (glass + frames), entry doors, sliding doors, garage door.
+INTERIOR (if visible): drywall/plaster (ceiling + walls separately), flooring (by type: hardwood, tile, carpet, laminate), baseboards, crown molding, paint.
+WET AREAS (if visible): bathroom tile, tub/shower surround, vanity/cabinets, plumbing fixtures (toilet, sink, faucet), ventilation fan.
+KITCHEN (if visible): cabinets (upper + lower), countertops, appliances, sink/faucet, flooring.
+SYSTEMS (if visible): electrical (outlets, switches, light fixtures, wiring), plumbing (pipes, water heater), HVAC (units, ductwork).
+STRUCTURAL (if visible): foundation, framing, load-bearing walls, insulation.
+For each zone: if damaged → add to damages array. If intact/not visible → skip. Do NOT guess.
+
+PROFESSIONAL ESTIMATING FORMAT (Xactimate-style):
+For EACH damaged component, you must provide:
+- "room": which room/area (e.g. "Master Bathroom", "Kitchen", "Living Room", "Roof")
+- "surface": which surface (e.g. "ceiling", "wall", "floor", or "fixture" / "system" / "structure")
+- "quantity": estimated affected area or count
+- "unit": measurement unit — "SF" (sq ft), "LF" (linear ft), "SY" (sq yard), or "EA" (each)
+- "unit_cost_low" / "unit_cost_high": cost per unit (materials + labor)
+These fields enable professional-grade line-item estimates similar to Xactimate reports.
+
+COST CALCULATION GUIDANCE (typical ranges per unit):
+- Drywall (install + tape + texture): $2.50–$4.00 per SF
+- Paint (seal + prime + 2 coats): $1.20–$2.00 per SF
+- Laminate flooring (install): $8.00–$12.00 per SF
+- Tile flooring (install + mortar): $12.00–$18.00 per SF
+- Insulation (batt R-11 to R-30): $0.75–$2.00 per SF
+- Baseboard/trim: $3.50–$5.00 per LF
+- Vanity with top: $400–$600 per LF
+- Interior door (detach/reset): $25–$50 per EA
+- Plumbing fixtures: toilet $250–$400 EA, sink $150–$300 EA, tub $800–$1,500 EA
+- Light fixture: $80–$150 EA
+- Overhead & Profit: typically 10% overhead + 10% profit on subtotal
+- Material sales tax: varies by state (6%–10.25%)` : ""}
 ${type === "auto" && vMake ? `
 VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
 Use this information to provide accurate, model-specific repair cost estimates. Consider the vehicle's market value when assessing repair vs. replace recommendations. Factor in OEM vs aftermarket parts pricing for this specific vehicle.` : ""}
@@ -681,7 +706,51 @@ ${(() => {
 })()}
 
 Respond ONLY with a valid JSON object (no markdown, no backticks):
-{
+${type === "property" ? `{
+  "summary": "Brief 2-3 sentence overview of damage",
+  "damage_type": "property",
+  "severity": "minor|moderate|severe|total_loss",
+  "confidence": 0.0-1.0,
+  "damages": [
+    {
+      "component": "Specific work item (e.g. '1/2 inch drywall - hung, taped, textured')",
+      "room": "Room or area name (e.g. 'Master Bathroom', 'Kitchen')",
+      "surface": "ceiling|wall|floor|fixture|system|structure|exterior",
+      "description": "What happened — describe SPECIFIC visual evidence",
+      "severity": "minor|moderate|severe",
+      "quantity": number,
+      "unit": "SF|LF|SY|EA",
+      "unit_cost_low": number,
+      "unit_cost_high": number,
+      "estimated_cost_low": number,
+      "estimated_cost_high": number
+    }
+  ],
+  "potential_damages": [
+    {
+      "component": "Name of part likely damaged but NOT visible in photos",
+      "room": "Room or area name",
+      "reason": "Why you believe this is likely damaged",
+      "estimated_cost_low": number,
+      "estimated_cost_high": number
+    }
+  ],
+  "cost_summary": {
+    "line_items_subtotal_low": number,
+    "line_items_subtotal_high": number,
+    "overhead_pct": 10,
+    "profit_pct": 10,
+    "tax_pct": number
+  },
+  "total_estimate_low": number,
+  "total_estimate_high": number,
+  "recommendations": ["3-5 actionable next steps, no duplicates"],
+  "flags": ["3-5 distinct red flags or concerns"],
+  "repair_vs_replace": "repair|replace|needs_inspection"
+}
+
+Note: total_estimate should include overhead (10%) + profit (10%) on top of line items subtotal. Tax applies to materials portion only.
+Each damage item should be a specific LINE ITEM (like Xactimate), not a vague area. For example: instead of "bathroom damage", list separate items: "drywall ceiling repair", "tile floor replacement", "vanity replacement", etc.` : `{
   "summary": "Brief 2-3 sentence overview of damage",
   "damage_type": "${type}",
   "severity": "minor|moderate|severe|total_loss",
@@ -708,7 +777,7 @@ Respond ONLY with a valid JSON object (no markdown, no backticks):
   "recommendations": ["3-5 actionable next steps, no duplicates"],
   "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
-}
+}`}
 
 ACCURACY RULES:
 1. "damages" array: ONLY damage confirmed by visual evidence in the photos. For each item, describe the SPECIFIC visual evidence you see (e.g. "dent visible on lower section" not just "damaged").
@@ -1359,15 +1428,69 @@ function ReportView({ claim, onBack }) {
         ${p.caption ? `<div style="font-size:9px;color:#6B7280;margin-top:3px;max-width:220px;line-height:1.3;">Photo ${i+1}: ${p.caption}</div>` : `<div style="font-size:9px;color:#9CA3AF;margin-top:3px;">Photo ${i+1}</div>`}
       </div>`
     ).join("");
-    const damageRows = (a.damages || []).map((d, i) => {
-      const dc = sevColorMap[d.severity] || "#F59E0B";
-      return `<tr>
-        <td class="tc">${i + 1}. ${d.component}</td>
-        <td class="tc"><span class="badge" style="background:${dc}18;color:${dc};">${d.severity}</span></td>
-        <td class="tc">${d.description}</td>
-        <td class="tc" style="text-align:right;font-weight:600;">$${(d.estimated_cost_low||0).toLocaleString()} – $${(d.estimated_cost_high||0).toLocaleString()}</td>
-      </tr>`;
-    }).join("");
+    // Build damage rows - grouped by room for property, flat for auto
+    const isPropertyWithRooms = claim.type === "property" && (a.damages || []).some(d => d.room);
+    let damageRows = "";
+    if (isPropertyWithRooms) {
+      const rooms = {};
+      (a.damages || []).forEach((d, i) => {
+        const room = d.room || "General";
+        if (!rooms[room]) rooms[room] = [];
+        rooms[room].push({ ...d, _idx: i });
+      });
+      damageRows = Object.entries(rooms).map(([room, items]) => {
+        const roomLow = items.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
+        const roomHigh = items.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+        const rows = items.map((d, j) => {
+          const dc = sevColorMap[d.severity] || "#F59E0B";
+          const qtyInfo = d.quantity && d.unit ? `<div style="font-size:9px;color:#2563EB;">${d.quantity} ${d.unit} × $${d.unit_cost_low || "?"}–$${d.unit_cost_high || "?"}/${d.unit}</div>` : "";
+          return `<tr>
+            <td class="tc">${d.component}${d.surface ? `<div style="font-size:9px;color:#9CA3AF;text-transform:capitalize;">${d.surface}</div>` : ""}</td>
+            <td class="tc"><span class="badge" style="background:${dc}18;color:${dc};">${d.severity}</span></td>
+            <td class="tc">${d.description}${qtyInfo}</td>
+            <td class="tc" style="text-align:right;font-weight:600;">$${(d.estimated_cost_low||0).toLocaleString()} – $${(d.estimated_cost_high||0).toLocaleString()}</td>
+          </tr>`;
+        }).join("");
+        return `<tr><td colspan="4" style="background:#EFF6FF;padding:8px 10px;font-weight:700;font-size:11px;color:#1E3A5F;border-bottom:2px solid #BFDBFE;">
+          ${room} <span style="float:right;font-weight:600;color:#2563EB;">$${roomLow.toLocaleString()} – $${roomHigh.toLocaleString()}</span>
+        </td></tr>${rows}`;
+      }).join("");
+    } else {
+      damageRows = (a.damages || []).map((d, i) => {
+        const dc = sevColorMap[d.severity] || "#F59E0B";
+        return `<tr>
+          <td class="tc">${i + 1}. ${d.component}</td>
+          <td class="tc"><span class="badge" style="background:${dc}18;color:${dc};">${d.severity}</span></td>
+          <td class="tc">${d.description}</td>
+          <td class="tc" style="text-align:right;font-weight:600;">$${(d.estimated_cost_low||0).toLocaleString()} – $${(d.estimated_cost_high||0).toLocaleString()}</td>
+        </tr>`;
+      }).join("");
+    }
+    // Cost summary section for property
+    const costSummaryHTML = a.cost_summary ? `
+      <div style="margin-top:14px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748B;margin-bottom:6px;">Cost Summary</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;">
+          <span>Line Items Subtotal</span>
+          <span>$${(a.cost_summary.line_items_subtotal_low||0).toLocaleString()} – $${(a.cost_summary.line_items_subtotal_high||0).toLocaleString()}</span>
+        </div>
+        ${a.cost_summary.overhead_pct ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;">
+          <span>Overhead (${a.cost_summary.overhead_pct}%)</span>
+          <span>$${Math.round((a.cost_summary.line_items_subtotal_low||0)*a.cost_summary.overhead_pct/100).toLocaleString()} – $${Math.round((a.cost_summary.line_items_subtotal_high||0)*a.cost_summary.overhead_pct/100).toLocaleString()}</span>
+        </div>` : ""}
+        ${a.cost_summary.profit_pct ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;">
+          <span>Profit (${a.cost_summary.profit_pct}%)</span>
+          <span>$${Math.round((a.cost_summary.line_items_subtotal_low||0)*a.cost_summary.profit_pct/100).toLocaleString()} – $${Math.round((a.cost_summary.line_items_subtotal_high||0)*a.cost_summary.profit_pct/100).toLocaleString()}</span>
+        </div>` : ""}
+        ${a.cost_summary.tax_pct ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;">
+          <span>Material Sales Tax (~${a.cost_summary.tax_pct}%)</span>
+          <span>included</span>
+        </div>` : ""}
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0F172A;border-top:2px solid #CBD5E1;padding-top:6px;margin-top:4px;">
+          <span>Total Estimate (RCV)</span>
+          <span>$${(a.total_estimate_low||0).toLocaleString()} – $${(a.total_estimate_high||0).toLocaleString()}</span>
+        </div>
+      </div>` : "";
     const recs = (a.recommendations||[]).map((r,i) => `<li>${r}</li>`).join("");
     const flags = (a.flags||[]).map((f,i) => `<li>${f}</li>`).join("");
     const potentialRows = (a.potential_damages||[]).map((pd, i) => `<tr>
@@ -1462,7 +1585,7 @@ function ReportView({ claim, onBack }) {
     <div class="meta">
       <strong>Report ID:</strong> ${claim.id}<br/>
       <strong>Date:</strong> ${new Date(claim.createdAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<br/>
-      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
+      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
     </div>
   </div>
 
@@ -1513,6 +1636,7 @@ function ReportView({ claim, onBack }) {
       <thead><tr><th>Component</th><th>Severity</th><th>Description</th><th>Est. Cost</th></tr></thead>
       <tbody>${damageRows}</tbody>
     </table>
+    ${costSummaryHTML}
   </div>
 
   ${potentialRows ? `
@@ -1731,45 +1855,160 @@ function ReportView({ claim, onBack }) {
         padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`,
         background: palette.surface, marginBottom: 16,
       }}>
-        <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, marginBottom: 16, margin: 0, marginBottom: 16 }}>Damage Breakdown</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {a.damages?.map((d, i) => {
-            const ds = severityConfig[d.severity] || severityConfig.moderate;
-            return (
-              <div key={i} style={{
-                padding: 14, borderRadius: 10, background: palette.surfaceAlt,
-                border: `1px solid ${palette.border}`,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{d.component}</span>
-                    <span style={{
-                      fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 10,
-                      background: ds.bg, color: ds.color, textTransform: "uppercase",
+        <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, margin: 0, marginBottom: 16 }}>Damage Breakdown</h3>
+
+        {/* Property: group by room */}
+        {claim.type === "property" && a.damages?.some(d => d.room) ? (() => {
+          const rooms = {};
+          a.damages.forEach((d, i) => {
+            const room = d.room || "General";
+            if (!rooms[room]) rooms[room] = [];
+            rooms[room].push({ ...d, _idx: i });
+          });
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {Object.entries(rooms).map(([room, items]) => {
+                const roomLow = items.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
+                const roomHigh = items.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+                return (
+                  <div key={room} style={{ borderRadius: 10, border: `1px solid ${palette.border}`, overflow: "hidden" }}>
+                    <div style={{
+                      padding: "10px 14px", background: palette.surfaceAlt,
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      borderBottom: `1px solid ${palette.border}`,
                     }}>
-                      {d.severity}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: palette.text }}>{room}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: palette.accent }}>
+                        ${roomLow.toLocaleString()} – ${roomHigh.toLocaleString()}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {items.map((d, j) => {
+                        const ds = severityConfig[d.severity] || severityConfig.moderate;
+                        return (
+                          <div key={j} style={{
+                            padding: "10px 14px",
+                            borderBottom: j < items.length - 1 ? `1px solid ${palette.border}` : "none",
+                            background: palette.surface,
+                          }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>{d.component}</span>
+                                <span style={{
+                                  fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 10,
+                                  background: ds.bg, color: ds.color, textTransform: "uppercase",
+                                }}>{d.severity}</span>
+                                {d.surface && (
+                                  <span style={{ fontSize: 10, color: palette.textDim, textTransform: "capitalize" }}>{d.surface}</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: palette.text, whiteSpace: "nowrap" }}>
+                                ${d.estimated_cost_low?.toLocaleString()}–${d.estimated_cost_high?.toLocaleString()}
+                              </span>
+                            </div>
+                            {(d.quantity && d.unit) && (
+                              <div style={{ fontSize: 11, color: palette.accent, marginBottom: 3 }}>
+                                {d.quantity} {d.unit} × ${d.unit_cost_low?.toLocaleString() || "?"} – ${d.unit_cost_high?.toLocaleString() || "?"}/{d.unit}
+                              </div>
+                            )}
+                            <p style={{ fontSize: 12, color: palette.textMuted, margin: 0, lineHeight: 1.4 }}>{d.description}</p>
+                            {claim.validation?.items?.[d._idx] && claim.validation.items[d._idx].status !== "unknown" && (
+                              <div style={{
+                                marginTop: 4, fontSize: 10, display: "flex", alignItems: "center", gap: 4,
+                                color: claim.validation.items[d._idx].status === "in_range" ? palette.success
+                                  : claim.validation.items[d._idx].status === "reference" ? palette.textDim : palette.warning,
+                              }}>
+                                <span>{claim.validation.items[d._idx].status === "in_range" ? "\u2713" : claim.validation.items[d._idx].status === "reference" ? "\u2139" : "\u26A0"}</span>
+                                <span>{claim.validation.items[d._idx].message}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Cost Summary for property */}
+              {a.cost_summary && (
+                <div style={{
+                  padding: 14, borderRadius: 10, background: palette.surfaceAlt,
+                  border: `1px solid ${palette.border}`,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: palette.text, marginBottom: 8 }}>Cost Summary</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Line Items Subtotal</span>
+                      <span>${(a.cost_summary.line_items_subtotal_low || 0).toLocaleString()} – ${(a.cost_summary.line_items_subtotal_high || 0).toLocaleString()}</span>
+                    </div>
+                    {a.cost_summary.overhead_pct > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                        <span>Overhead ({a.cost_summary.overhead_pct}%)</span>
+                        <span>${Math.round((a.cost_summary.line_items_subtotal_low || 0) * a.cost_summary.overhead_pct / 100).toLocaleString()} – ${Math.round((a.cost_summary.line_items_subtotal_high || 0) * a.cost_summary.overhead_pct / 100).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {a.cost_summary.profit_pct > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                        <span>Profit ({a.cost_summary.profit_pct}%)</span>
+                        <span>${Math.round((a.cost_summary.line_items_subtotal_low || 0) * a.cost_summary.profit_pct / 100).toLocaleString()} – ${Math.round((a.cost_summary.line_items_subtotal_high || 0) * a.cost_summary.profit_pct / 100).toLocaleString()}</span>
+                      </div>
+                    )}
+                    {a.cost_summary.tax_pct > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                        <span>Material Sales Tax (~{a.cost_summary.tax_pct}%)</span>
+                        <span>included</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: palette.text, borderTop: `1px solid ${palette.border}`, paddingTop: 6, marginTop: 4 }}>
+                      <span>Total Estimate</span>
+                      <span>${(a.total_estimate_low || 0).toLocaleString()} – ${(a.total_estimate_high || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })() : (
+          /* Auto: flat list */
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {a.damages?.map((d, i) => {
+              const ds = severityConfig[d.severity] || severityConfig.moderate;
+              return (
+                <div key={i} style={{
+                  padding: 14, borderRadius: 10, background: palette.surfaceAlt,
+                  border: `1px solid ${palette.border}`,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{d.component}</span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 10,
+                        background: ds.bg, color: ds.color, textTransform: "uppercase",
+                      }}>
+                        {d.severity}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>
+                      ${d.estimated_cost_low?.toLocaleString()}–${d.estimated_cost_high?.toLocaleString()}
                     </span>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>
-                    ${d.estimated_cost_low?.toLocaleString()}–${d.estimated_cost_high?.toLocaleString()}
-                  </span>
+                  <p style={{ fontSize: 13, color: palette.textMuted, margin: 0, lineHeight: 1.5 }}>{d.description}</p>
+                  {claim.validation?.items?.[i] && claim.validation.items[i].status !== "unknown" && (
+                    <div style={{
+                      marginTop: 6, fontSize: 11, display: "flex", alignItems: "center", gap: 4,
+                      color: claim.validation.items[i].status === "in_range" ? palette.success
+                        : claim.validation.items[i].status === "reference" ? palette.textDim
+                        : palette.warning,
+                    }}>
+                      <span>{claim.validation.items[i].status === "in_range" ? "\u2713" : claim.validation.items[i].status === "reference" ? "\u2139" : "\u26A0"}</span>
+                      <span>{claim.validation.items[i].message}</span>
+                    </div>
+                  )}
                 </div>
-                <p style={{ fontSize: 13, color: palette.textMuted, margin: 0, lineHeight: 1.5 }}>{d.description}</p>
-                {claim.validation?.items?.[i] && claim.validation.items[i].status !== "unknown" && (
-                  <div style={{
-                    marginTop: 6, fontSize: 11, display: "flex", alignItems: "center", gap: 4,
-                    color: claim.validation.items[i].status === "in_range" ? palette.success
-                      : claim.validation.items[i].status === "reference" ? palette.textDim
-                      : palette.warning,
-                  }}>
-                    <span>{claim.validation.items[i].status === "in_range" ? "\u2713" : claim.validation.items[i].status === "reference" ? "\u2139" : "\u26A0"}</span>
-                    <span>{claim.validation.items[i].message}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Potential Additional Damage */}
@@ -1788,7 +2027,9 @@ function ReportView({ claim, onBack }) {
             </span>
           </h3>
           <p style={{ fontSize: 12, color: palette.textDim, margin: 0, marginBottom: 12 }}>
-            Based on vehicle model and damage pattern, these parts may also be affected. Requires physical inspection to confirm.
+            {claim.type === "auto"
+              ? "Based on vehicle model and damage pattern, these parts may also be affected. Requires physical inspection to confirm."
+              : "Based on damage pattern and property type, these areas may also be affected. Requires physical inspection to confirm."}
           </p>
           {a.potential_total_low > 0 && (
             <div style={{ fontSize: 13, fontWeight: 600, color: palette.warning, marginBottom: 12 }}>
