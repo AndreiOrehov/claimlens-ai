@@ -286,9 +286,10 @@ function Input({ label, value, onChange, placeholder, type = "text", onKeyDown }
 // ============================================================
 function Dashboard({ user, onLogout }) {
   const isMobile = useIsMobile();
-  const [view, setView] = useState("new"); // "new" | "history" | "report"
+  const [view, setView] = useState("home"); // "home" | "new" | "report"
   const [claims, setClaims] = useState([]);
   const [selectedClaim, setSelectedClaim] = useState(null);
+  const [claimType, setClaimType] = useState(null); // null | "auto" | "property"
 
   useEffect(() => {
     setClaims(DB.getClaims(user.id));
@@ -298,7 +299,13 @@ function Dashboard({ user, onLogout }) {
     DB.saveClaim(user.id, claim);
     setClaims(DB.getClaims(user.id));
     setSelectedClaim(claim);
+    setClaimType(null);
     setView("report");
+  };
+
+  const startNewClaim = (type) => {
+    setClaimType(type);
+    setView("new");
   };
 
   return (
@@ -310,28 +317,120 @@ function Dashboard({ user, onLogout }) {
         background: `${palette.surface}E6`, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
         position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => { setView("home"); setClaimType(null); }}>
           <img src="/icon.png" alt="" style={{
             width: 44, height: 44, borderRadius: 11,
             boxShadow: palette.glow,
           }} />
-          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>ClaimPilot AI</span>
+          <div>
+            <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", display: "block" }}>ClaimPilot AI</span>
+            <span style={{ fontSize: 10, color: palette.textDim, letterSpacing: "0.04em", textTransform: "uppercase" }}>Estimate Before You Inspect</span>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          <NavBtn icon={<Icons.Plus />} label="New Claim" active={view === "new"} onClick={() => setView("new")} />
-          <NavBtn icon={<Icons.History />} label="History" active={view === "history"} onClick={() => setView("history")} badge={claims.length} />
-          <NavBtn icon={<Icons.LogOut />} label="" active={false} onClick={onLogout} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: palette.textDim }}>{user.name || user.email}</span>
+          <button onClick={onLogout} style={{
+            display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8,
+            border: `1px solid ${palette.border}`, cursor: "pointer", fontFamily: font, fontSize: 12, fontWeight: 500,
+            background: "transparent", color: palette.textMuted, transition: "all 0.2s",
+          }}>
+            <Icons.LogOut /> Log out
+          </button>
         </div>
       </nav>
 
       {/* Content */}
       <div style={{ maxWidth: isMobile ? "100%" : 960, margin: "0 auto", padding: "24px 20px" }}>
-        {view === "new" && <NewClaimView onSubmit={handleNewClaim} />}
-        {view === "history" && (
-          <HistoryView claims={claims} onSelect={(c) => { setSelectedClaim(c); setView("report"); }} />
+
+        {/* HOME VIEW — New Claim button + History */}
+        {view === "home" && (
+          <div>
+            {/* New Claim Section */}
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, marginBottom: 6, letterSpacing: "-0.02em" }}>
+                Welcome back{user.name ? `, ${user.name.split(" ")[0]}` : ""}
+              </h2>
+              <p style={{ color: palette.textDim, fontSize: 14, marginBottom: 20 }}>
+                Start a new damage assessment or review your previous claims.
+              </p>
+
+              {/* New Claim — type not chosen yet */}
+              {!claimType && (
+                <div style={{
+                  display: "flex", gap: 14, flexDirection: isMobile ? "column" : "row",
+                  transition: "all 0.3s ease",
+                }}>
+                  {[
+                    { key: "auto", icon: <Icons.Car />, title: "Vehicle Damage", desc: "Collision, dents, scratches, glass damage", color: palette.accent },
+                    { key: "property", icon: <Icons.Home />, title: "Property Damage", desc: "Water, fire, storm, structural damage", color: "#8B5CF6" },
+                  ].map((t) => (
+                    <button key={t.key} onClick={() => startNewClaim(t.key)} style={{
+                      flex: 1, padding: isMobile ? 20 : 24, borderRadius: 16, cursor: "pointer", textAlign: "left",
+                      border: `1.5px solid ${palette.border}`, background: palette.surface,
+                      transition: "all 0.3s", boxShadow: "none", fontFamily: font,
+                    }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.color + "60"; e.currentTarget.style.boxShadow = `0 0 20px ${t.color}20, 0 0 60px ${t.color}08`; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = palette.border; e.currentTarget.style.boxShadow = "none"; }}
+                    >
+                      <div style={{
+                        width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
+                        background: `${t.color}15`, color: t.color, marginBottom: 14,
+                      }}>
+                        {t.icon}
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: palette.text, marginBottom: 4 }}>{t.title}</div>
+                      <div style={{ fontSize: 13, color: palette.textMuted, lineHeight: 1.4 }}>{t.desc}</div>
+                      <div style={{
+                        marginTop: 14, fontSize: 13, fontWeight: 600, color: t.color,
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}>
+                        Start Assessment →
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Claim History */}
+            {claims.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700 }}>Recent Claims</h3>
+                  <span style={{ fontSize: 12, color: palette.textDim }}>{claims.length} total</span>
+                </div>
+                <HistoryView claims={claims} onSelect={(c) => { setSelectedClaim(c); setView("report"); }} />
+              </div>
+            )}
+
+            {claims.length === 0 && (
+              <div style={{
+                textAlign: "center", padding: "40px 20px", borderRadius: 16,
+                border: `1px dashed ${palette.border}`, background: palette.surface,
+              }}>
+                <div style={{ color: palette.textDim, marginBottom: 8 }}><Icons.FileText /></div>
+                <p style={{ color: palette.textMuted, fontSize: 14 }}>No claims yet. Start your first assessment above.</p>
+              </div>
+            )}
+          </div>
         )}
+
+        {/* NEW CLAIM VIEW */}
+        {view === "new" && claimType && (
+          <div>
+            <button onClick={() => { setView("home"); setClaimType(null); }} style={{
+              background: "none", border: "none", color: palette.accent, cursor: "pointer",
+              fontFamily: font, fontSize: 13, padding: 0, marginBottom: 16, display: "block",
+            }}>
+              ← Back to Dashboard
+            </button>
+            <NewClaimView onSubmit={handleNewClaim} initialType={claimType} />
+          </div>
+        )}
+
+        {/* REPORT VIEW */}
         {view === "report" && selectedClaim && (
-          <ReportView claim={selectedClaim} onBack={() => setView("history")} />
+          <ReportView claim={selectedClaim} onBack={() => setView("home")} />
         )}
       </div>
     </div>
@@ -463,9 +562,9 @@ function Select({ label, value, onChange, options, placeholder, disabled }) {
 // ============================================================
 // New Claim View
 // ============================================================
-function NewClaimView({ onSubmit }) {
+function NewClaimView({ onSubmit, initialType }) {
   const isMobile = useIsMobile();
-  const [type, setType] = useState("auto");
+  const [type, setType] = useState(initialType || "auto");
   const [photos, setPhotos] = useState([]);
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -1062,28 +1161,22 @@ ACCURACY RULES:
 
   return (
     <div>
-      <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>New Damage Claim</h2>
-      <p style={{ color: palette.textMuted, fontSize: 14, marginBottom: 24 }}>
-        Upload photos and our AI will assess the damage and estimate repair costs.
-      </p>
-
-      {/* Damage Type Selector */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-        {[
-          { key: "auto", icon: <Icons.Car />, label: "Vehicle Damage", desc: "Collision, dents, scratches" },
-          { key: "property", icon: <Icons.Home />, label: "Property Damage", desc: "Water, fire, storm, structural" },
-        ].map((t) => (
-          <button key={t.key} onClick={() => handleTypeChange(t.key)} style={{
-            flex: 1, padding: 16, borderRadius: 14, border: `1.5px solid ${type === t.key ? palette.accent + "60" : palette.border}`,
-            background: type === t.key ? palette.accentSoft : palette.surface,
-            cursor: "pointer", textAlign: "left", transition: "all 0.3s",
-            boxShadow: type === t.key ? palette.glow : "none",
-          }}>
-            <div style={{ color: type === t.key ? palette.accent : palette.textMuted, marginBottom: 6 }}>{t.icon}</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>{t.label}</div>
-            <div style={{ fontSize: 12, color: palette.textDim, marginTop: 2 }}>{t.desc}</div>
-          </button>
-        ))}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+          background: type === "auto" ? `${palette.accent}15` : "#8B5CF615",
+          color: type === "auto" ? palette.accent : "#8B5CF6",
+        }}>
+          {type === "auto" ? <Icons.Car /> : <Icons.Home />}
+        </div>
+        <div>
+          <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
+            {type === "auto" ? "Vehicle Damage" : "Property Damage"} Assessment
+          </h2>
+          <p style={{ color: palette.textDim, fontSize: 13, margin: 0 }}>
+            Upload photos and our AI will estimate repair costs.
+          </p>
+        </div>
       </div>
 
       {/* Vehicle Detail Fields */}
@@ -1369,15 +1462,7 @@ ACCURACY RULES:
 // History View
 // ============================================================
 function HistoryView({ claims, onSelect }) {
-  if (claims.length === 0) {
-    return (
-      <div style={{ textAlign: "center", padding: "60px 20px" }}>
-        <div style={{ color: palette.textDim, marginBottom: 12 }}><Icons.FileText /></div>
-        <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>No claims yet</h3>
-        <p style={{ color: palette.textMuted, fontSize: 14 }}>Your damage assessments will appear here.</p>
-      </div>
-    );
-  }
+  if (claims.length === 0) return null;
 
   const severityColors = {
     minor: { bg: palette.successSoft, color: palette.success },
@@ -1388,8 +1473,6 @@ function HistoryView({ claims, onSelect }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Claim History</h2>
-      <p style={{ color: palette.textMuted, fontSize: 14, marginBottom: 24 }}>{claims.length} assessment{claims.length !== 1 ? "s" : ""}</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {claims.map((c) => {
           const sev = severityColors[c.assessment?.severity] || severityColors.moderate;
@@ -1835,7 +1918,7 @@ function ReportView({ claim, onBack }) {
             background: "none", border: "none", color: palette.accent, cursor: "pointer",
             fontFamily: font, fontSize: 13, padding: 0, marginBottom: 4, display: "block",
           }}>
-            ← Back to History
+            ← Back to Dashboard
           </button>
           <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>Assessment Report</h2>
         </div>
