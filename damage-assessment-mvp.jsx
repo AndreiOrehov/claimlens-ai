@@ -5,6 +5,17 @@ import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fet
 // ClaimLens AI — Insurance Damage Assessment MVP
 // ============================================================
 
+// --- Responsive hook ---
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // --- Storage helpers (simulates DB) ---
 const DB = {
   getUser: () => {
@@ -141,6 +152,7 @@ const Icons = {
 // Auth Screen
 // ============================================================
 function AuthScreen({ onLogin }) {
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -175,7 +187,7 @@ function AuthScreen({ onLogin }) {
     }}>
       <div style={{
         width: "100%", maxWidth: 420, background: palette.surface, borderRadius: 16,
-        border: `1px solid ${palette.border}`, padding: 40,
+        border: `1px solid ${palette.border}`, padding: isMobile ? 20 : 40,
       }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -268,6 +280,7 @@ function Input({ label, value, onChange, placeholder, type = "text", onKeyDown }
 // Main App (Dashboard)
 // ============================================================
 function Dashboard({ user, onLogout }) {
+  const isMobile = useIsMobile();
   const [view, setView] = useState("new"); // "new" | "history" | "report"
   const [claims, setClaims] = useState([]);
   const [selectedClaim, setSelectedClaim] = useState(null);
@@ -311,7 +324,7 @@ function Dashboard({ user, onLogout }) {
       </nav>
 
       {/* Content */}
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px" }}>
+      <div style={{ maxWidth: isMobile ? "100%" : 960, margin: "0 auto", padding: "24px 20px" }}>
         {view === "new" && <NewClaimView onSubmit={handleNewClaim} />}
         {view === "history" && (
           <HistoryView claims={claims} onSelect={(c) => { setSelectedClaim(c); setView("report"); }} />
@@ -447,6 +460,7 @@ function Select({ label, value, onChange, options, placeholder, disabled }) {
 // New Claim View
 // ============================================================
 function NewClaimView({ onSubmit }) {
+  const isMobile = useIsMobile();
   const [type, setType] = useState("auto");
   const [photos, setPhotos] = useState([]);
   const [description, setDescription] = useState("");
@@ -930,7 +944,7 @@ ACCURACY RULES:
 
   return (
     <div>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>New Damage Claim</h2>
+      <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>New Damage Claim</h2>
       <p style={{ color: palette.textMuted, fontSize: 14, marginBottom: 24 }}>
         Upload photos and our AI will assess the damage and estimate repair costs.
       </p>
@@ -962,11 +976,11 @@ ACCURACY RULES:
           <div style={{ fontSize: 13, fontWeight: 600, color: palette.text, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
             <Icons.Car /> Vehicle Information
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <Select label="Make *" value={vMake} onChange={handleMakeChange} options={makes} placeholder="Select make..." />
             <Select label="Model *" value={vModel} onChange={handleModelChange} options={models} placeholder={vMake ? "Select model..." : "Select make first"} disabled={!vMake} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
             <Select label="Year *" value={vYear} onChange={setVYear} options={years} placeholder={vModel ? "Select year..." : "Select model first"} disabled={!vModel} />
             <Input label="Mileage (optional)" value={vMileage} onChange={setVMileage} placeholder="e.g. 85000" type="number" />
             <Select label="State *" value={claimState} onChange={setClaimState} options={US_STATES} placeholder="Select state..." />
@@ -988,15 +1002,15 @@ ACCURACY RULES:
           <div style={{ fontSize: 13, fontWeight: 600, color: palette.text, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
             <Icons.Home /> Property Information
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <Input label="Property Address" value={pAddress} onChange={setPAddress} placeholder="123 Main St, City" />
             <Select label="State *" value={claimState} onChange={setClaimState} options={US_STATES} placeholder="Select state..." />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginTop: 12 }}>
             <Select label="Property Type *" value={pType} onChange={setPType} options={PROPERTY_TYPES} placeholder="Select type..." />
             <Select label="Damage Cause *" value={pCause} onChange={setPCause} options={DAMAGE_CAUSES} placeholder="What caused the damage?" />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
             <Select label="Area Affected *" value={pArea} onChange={setPArea} options={AREAS_AFFECTED} placeholder="Select area..." />
             <Input label="Sq. Footage (optional)" value={pSqft} onChange={setPSqft} placeholder="e.g. 2400" type="number" />
             <Input label="Year Built (optional)" value={pYearBuilt} onChange={setPYearBuilt} placeholder="e.g. 1995" type="number" />
@@ -1068,8 +1082,7 @@ ACCURACY RULES:
       )}
 
       {/* Details */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <Input label="Location" value={location} onChange={setLocation} placeholder="City, State" />
+      <div style={{ marginBottom: 16 }}>
         <Input label="Date of Damage" value={date} onChange={setDate} type="date" />
       </div>
       <div style={{ marginBottom: 24 }}>
@@ -1215,6 +1228,7 @@ function HistoryView({ claims, onSelect }) {
 // Report View
 // ============================================================
 function ReportView({ claim, onBack }) {
+  const isMobile = useIsMobile();
   const a = claim.assessment;
   if (!a) return null;
 
@@ -1488,7 +1502,7 @@ function ReportView({ claim, onBack }) {
           display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
         }} onClick={() => setShowPDF(false)}>
           <div style={{
-            background: "#E5E7EB", borderRadius: 12, width: "100%", maxWidth: 820,
+            background: "#E5E7EB", borderRadius: 12, width: "100%", maxWidth: isMobile ? "95vw" : 820,
             maxHeight: "92vh", overflow: "hidden", display: "flex", flexDirection: "column",
             boxShadow: "0 25px 60px rgba(0,0,0,0.5)",
           }} onClick={(e) => e.stopPropagation()}>
@@ -1552,7 +1566,7 @@ function ReportView({ claim, onBack }) {
           }}>
             ← Back to History
           </button>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Assessment Report</h2>
+          <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>Assessment Report</h2>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={downloadReport} style={{
@@ -1632,7 +1646,7 @@ function ReportView({ claim, onBack }) {
       {/* Photos */}
       {claim.photos?.length > 0 && (
         <div style={{
-          display: "grid", gridTemplateColumns: `repeat(${Math.min(claim.photos.length, 4)}, 1fr)`,
+          display: "grid", gridTemplateColumns: `repeat(${isMobile ? Math.min(claim.photos.length, 2) : Math.min(claim.photos.length, 4)}, 1fr)`,
           gap: 8, marginBottom: 16,
         }}>
           {claim.photos.map((p, i) => (
@@ -1648,7 +1662,7 @@ function ReportView({ claim, onBack }) {
         padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`,
         background: palette.surface, marginBottom: 16,
       }}>
-        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, margin: 0, marginBottom: 16 }}>Damage Breakdown</h3>
+        <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, marginBottom: 16, margin: 0, marginBottom: 16 }}>Damage Breakdown</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {a.damages?.map((d, i) => {
             const ds = severityConfig[d.severity] || severityConfig.moderate;
@@ -1695,7 +1709,7 @@ function ReportView({ claim, onBack }) {
           padding: 20, borderRadius: 12, border: `1px dashed ${palette.border}`,
           background: palette.surfaceAlt, marginBottom: 16,
         }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, margin: 0, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ color: palette.warning }}>⚡</span> Potential Additional Damage
             <span style={{
               fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
@@ -1737,7 +1751,7 @@ function ReportView({ claim, onBack }) {
           padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`,
           background: palette.surface, marginBottom: 16,
         }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, margin: 0, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
             Pricing Validation
             {claim.pricingSource === "live" && (
               <span style={{
@@ -1783,10 +1797,10 @@ function ReportView({ claim, onBack }) {
       )}
 
       {/* Recommendations & Flags */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 16 }}>
         {a.recommendations?.length > 0 && (
           <div style={{ padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`, background: palette.surface }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, margin: 0, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <h3 style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, marginBottom: 12, margin: 0, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: palette.success }}><Icons.Check /></span> Recommendations
             </h3>
             {a.recommendations.map((r, i) => (
@@ -1798,7 +1812,7 @@ function ReportView({ claim, onBack }) {
         )}
         {a.flags?.length > 0 && (
           <div style={{ padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`, background: palette.surface }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, margin: 0, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <h3 style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, marginBottom: 12, margin: 0, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: palette.warning }}><Icons.AlertTriangle /></span> Flags
             </h3>
             {a.flags.map((f, i) => (
@@ -1832,7 +1846,7 @@ function ReportView({ claim, onBack }) {
         }} onClick={() => setShowPreview(false)}>
           <div style={{
             background: palette.surface, borderRadius: 16, border: `1px solid ${palette.border}`,
-            width: "100%", maxWidth: 700, maxHeight: "85vh", overflow: "hidden",
+            width: "100%", maxWidth: isMobile ? "95vw" : 700, maxHeight: "85vh", overflow: "hidden",
             display: "flex", flexDirection: "column",
           }} onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
