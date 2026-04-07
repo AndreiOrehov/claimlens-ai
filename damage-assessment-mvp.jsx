@@ -813,9 +813,27 @@ ACCURACY RULES:
           return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || arr[0]?.[field];
         };
 
-        // Merge recommendations & flags (deduplicate)
-        const allRecs = [...new Set(assessments.flatMap(a => a.recommendations || []))];
-        const allFlags = [...new Set(assessments.flatMap(a => a.flags || []))];
+        // Fuzzy-deduplicate recommendations & flags
+        const fuzzyDedup = (items) => {
+          const result = [];
+          const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort().join(" ");
+          const similarity = (a, b) => {
+            const aw = a.split(" "), bw = b.split(" ");
+            const shared = aw.filter(w => bw.includes(w)).length;
+            return shared / Math.max(aw.length, bw.length);
+          };
+          for (const item of items) {
+            const norm = normalize(item);
+            const isDup = result.some(r => {
+              const rn = normalize(r);
+              return rn === norm || similarity(rn, norm) >= 0.65;
+            });
+            if (!isDup) result.push(item);
+          }
+          return result;
+        };
+        const allRecs = fuzzyDedup(assessments.flatMap(a => a.recommendations || []));
+        const allFlags = fuzzyDedup(assessments.flatMap(a => a.flags || []));
 
         // Average confidence
         const avgConf = assessments.reduce((s, a) => s + (a.confidence || 0), 0) / assessments.length;
