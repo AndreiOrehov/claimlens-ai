@@ -438,6 +438,183 @@ export function buildPricingContext(type, options) {
   return "";
 }
 
+// --- Live pricing cache helpers ---
+const GEMINI_API_KEY = "AIzaSyA4SyLpBF2uCJe0142lJkFPXU2BNIjHTyg";
+const CACHE_TTL = 86400000; // 24 hours in ms
+
+export function getCacheKey(type, options) {
+  if (type === "auto") {
+    const cls = getVehicleClass(options.make, options.model);
+    return `pricing_cache_auto_${cls}_${options.stateCode}`;
+  }
+  return `pricing_cache_property_${options.area || "multiple"}_${options.stateCode}`;
+}
+
+export function getCachedPricing(cacheKey) {
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (Date.now() - cached.timestamp > CACHE_TTL) {
+      localStorage.removeItem(cacheKey);
+      return null;
+    }
+    return cached.data;
+  } catch {
+    localStorage.removeItem(cacheKey);
+    return null;
+  }
+}
+
+function setCachedPricing(cacheKey, data) {
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {
+    // localStorage full — silently ignore
+  }
+}
+
+export async function fetchFreshPricing(type, options) {
+  const cacheKey = getCacheKey(type, options);
+  const cached = getCachedPricing(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const state = getStateData(options.stateCode);
+
+    let promptText = "";
+    if (type === "auto") {
+      const cls = getVehicleClass(options.make, options.model);
+      const clsLabel = { economy: "Economy", midsize: "Mid-size", luxury: "Luxury", truck_suv: "Truck/SUV" }[cls];
+      const componentNames = Object.keys(AUTO_PARTS_PRICING).map((k) => k.replace(/_/g, " ")).join(", ");
+      promptText = `Find current 2025-2026 US auto body repair costs for a ${clsLabel} class vehicle in ${state.label}.
+
+Components needed: ${componentNames}.
+
+For each component provide repair cost range [low, high] and replacement cost range [low, high] in USD.
+Also provide the average body shop labor rate per hour for this state.
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "source": "google_search",
+  "state": "${options.stateCode}",
+  "vehicle_class": "${cls}",
+  "labor_rate_per_hour": number,
+  "components": {
+    "bumper_front": { "repair": [low, high], "replace": [low, high] },
+    "bumper_rear": { "repair": [low, high], "replace": [low, high] }
+  }
+}
+Use the exact component keys: ${Object.keys(AUTO_PARTS_PRICING).join(", ")}.`;
+    }
+
+    if (type === "property") {
+      const relevant = getRelevantPropertyItems(options.area, options.cause);
+      const componentNames = relevant.map((k) => {
+        const d = PROPERTY_PRICING[k];
+        return d ? `${k.replace(/_/g, " ")} (per ${d.unit})` : k.replace(/_/g, " ");
+      }).join(", ");
+      promptText = `Find current 2025-2026 repair costs in ${state.label} for: ${componentNames}.
+
+For each provide materials cost range [low, high] and labor cost range [low, high] per unit.
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "source": "google_search",
+  "state": "${options.stateCode}",
+  "components": {
+    "roof_shingle": { "unit": "sq ft", "materials": [low, high], "labor": [low, high] }
+  }
+}
+Use the exact component keys: ${relevant.join(", ")}.`;
+    }
+
+    if (!promptText) return null;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          tools: [{
+            google_search_retrieval: {
+              dynamic_retrieval_config: { mode: "MODE_DYNAMIC", dynamic_threshold: 0.3 },
+            },
+          }],
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (data.error) return null;
+
+    const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (!parsed.components || Object.keys(parsed.components).length === 0) return null;
+
+    setCachedPricing(cacheKey, parsed);
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function mergePricing(freshData, type, options) {
+  const state = getStateData(options.stateCode);
+
+  if (type === "auto") {
+    const cls = getVehicleClass(options.make, options.model);
+    const merged = {};
+    for (const [key, localData] of Object.entries(AUTO_PARTS_PRICING)) {
+      const local = localData[cls];
+      const fresh = freshData?.components?.[key];
+      if (fresh && fresh.repair && fresh.replace) {
+        merged[key] = { ...fresh, source: "live" };
+      } else {
+        merged[key] = {
+          repair: local.repair,
+          replace: local.replace,
+          labor_hours: local.labor_hours,
+          source: "reference",
+        };
+      }
+    }
+    return {
+      source: freshData ? "live" : "reference",
+      labor_rate_per_hour: freshData?.labor_rate_per_hour || state.autoLaborRate,
+      components: merged,
+    };
+  }
+
+  if (type === "property") {
+    const relevant = getRelevantPropertyItems(options.area, options.cause);
+    const mult = state.propertyMultiplier;
+    const merged = {};
+    for (const key of relevant) {
+      const local = PROPERTY_PRICING[key];
+      const fresh = freshData?.components?.[key];
+      if (fresh && fresh.materials && fresh.labor) {
+        merged[key] = { ...fresh, source: "live" };
+      } else if (local) {
+        merged[key] = {
+          unit: local.unit,
+          materials: [local.materials[0] * mult, local.materials[1] * mult],
+          labor: [local.labor[0] * mult, local.labor[1] * mult],
+          notes: local.notes,
+          source: "reference",
+        };
+      }
+    }
+    return { source: freshData ? "live" : "reference", components: merged };
+  }
+
+  return { source: "reference", components: {} };
+}
+
 // --- Map areas/causes to relevant pricing items ---
 const AREA_PRICING_MAP = {
   roof:        ["roof_shingle", "roof_tile", "roof_metal", "roof_flat", "gutter", "insulation"],
