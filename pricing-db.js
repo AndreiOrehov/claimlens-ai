@@ -1,5 +1,5 @@
 // ============================================================
-// ClaimLens AI — Pricing Reference Database
+// ClaimPilot AI — Pricing Reference Database
 // Sources: autoGMS 2025, BEA Regional Price Parities 2023,
 //          RepairPal, HomeAdvisor, Fixr, HomeWyse, BLS
 // ============================================================

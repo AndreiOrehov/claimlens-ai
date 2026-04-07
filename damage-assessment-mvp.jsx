@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing } from "./pricing-db.js";
 
 // ============================================================
-// ClaimLens AI — Insurance Damage Assessment MVP
+// ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
 
 // --- Responsive hook ---
@@ -197,10 +197,10 @@ function AuthScreen({ onLogin }) {
           }}>
             <Icons.Shield />
           </div>
-          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>ClaimLens AI</span>
+          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>ClaimPilot AI</span>
         </div>
         <p style={{ color: palette.textMuted, fontSize: 14, marginBottom: 32, marginTop: 4 }}>
-          AI-powered damage assessment for insurance claims
+          Estimate Before You Inspect
         </p>
 
         {/* Tabs */}
@@ -314,7 +314,7 @@ function Dashboard({ user, onLogout }) {
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
           </div>
-          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>ClaimLens AI</span>
+          <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>ClaimPilot AI</span>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           <NavBtn icon={<Icons.Plus />} label="New Claim" active={view === "new"} onClick={() => setView("new")} />
@@ -666,7 +666,7 @@ function NewClaimView({ onSubmit }) {
       const propertyContext = type === "property" ? `Property: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || pType}${pCause ? `, Cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `, Area: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `, ~${pSqft} sq ft` : ""}${pYearBuilt ? `, Built: ${pYearBuilt}` : ""}` : "";
       const objectContext = vehicleContext || propertyContext;
 
-      const systemPrompt = `You are ClaimLens AI, a professional insurance damage assessment assistant.
+      const systemPrompt = `You are ClaimPilot AI, a professional insurance damage assessment assistant.
 Analyze the provided photos of ${type === "auto" ? "vehicle" : "property"} damage and generate a structured assessment.
 
 PHOTO ANALYSIS RULES — FOLLOW STRICTLY:
@@ -1570,7 +1570,7 @@ function ReportView({ claim, onBack }) {
     </tr>`).join("");
 
     return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>ClaimLens Report ${claim.id}</title>
+<html><head><meta charset="utf-8"><title>ClaimPilot Report ${claim.id}</title>
 <style>
   @page { size: letter; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1648,8 +1648,8 @@ function ReportView({ claim, onBack }) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
       <div>
-        <div class="logo-text">ClaimLens AI</div>
-        <div class="logo-sub">Damage Assessment Report</div>
+        <div class="logo-text">ClaimPilot AI</div>
+        <div class="logo-sub">Estimate Before You Inspect</div>
       </div>
     </div>
     <div class="meta">
@@ -1732,12 +1732,12 @@ function ReportView({ claim, onBack }) {
   </div>` : ""}
 
   <div class="disclaimer">
-    <p><strong>Disclaimer:</strong> This is a preliminary AI-generated estimate for informational purposes only. It does not constitute a binding assessment, appraisal, or guarantee of repair costs. A licensed insurance adjuster must conduct the final evaluation. ClaimLens AI assumes no liability for decisions made based on this report. Actual repair costs may vary based on parts availability, labor rates, and hidden damage discovered during repair.</p>
+    <p><strong>Disclaimer:</strong> This is a preliminary AI-generated estimate for informational purposes only. It does not constitute a binding assessment, appraisal, or guarantee of repair costs. A licensed insurance adjuster must conduct the final evaluation. ClaimPilot AI assumes no liability for decisions made based on this report. Actual repair costs may vary based on parts availability, labor rates, and hidden damage discovered during repair.</p>
   </div>
 
   <div class="footer">
-    <span>ClaimLens AI — Confidential</span>
-    <span>ClaimLens AI Report</span>
+    <span>ClaimPilot AI — Confidential</span>
+    <span>ClaimPilot AI Report</span>
   </div>
 </div>
 
