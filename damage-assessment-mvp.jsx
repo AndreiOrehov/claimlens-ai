@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass } from "./pricing-db.js";
+import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing } from "./pricing-db.js";
 
 // ============================================================
 // ClaimLens AI — Insurance Damage Assessment MVP
@@ -596,6 +596,13 @@ function NewClaimView({ onSubmit }) {
     }, 500);
 
     try {
+      // Fetch live pricing (or use cache/fallback)
+      const pricingOptions = type === "auto"
+        ? { make: vMake, model: vModel, stateCode: claimState }
+        : { area: pArea, cause: pCause, stateCode: claimState };
+      const freshData = await fetchFreshPricing(type, pricingOptions);
+      const mergedPricing = mergePricing(freshData, type, pricingOptions);
+
       const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
       const propertyContext = type === "property" ? `Property: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || pType}${pCause ? `, Cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `, Area: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `, ~${pSqft} sq ft` : ""}${pYearBuilt ? `, Built: ${pYearBuilt}` : ""}` : "";
       const objectContext = vehicleContext || propertyContext;
@@ -631,10 +638,10 @@ PROPERTY DETAILS: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || "Unknown t
 Use this information to provide accurate repair estimates considering the property type, construction materials typical for this era, and the specific cause of damage.` : ""}
 ${(() => {
   if (type === "auto" && vMake && claimState) {
-    return buildPricingContext("auto", { make: vMake, model: vModel, stateCode: claimState });
+    return buildPricingContext("auto", { make: vMake, model: vModel, stateCode: claimState, freshPricing: mergedPricing });
   }
   if (type === "property" && claimState) {
-    return buildPricingContext("property", { area: pArea, cause: pCause, stateCode: claimState });
+    return buildPricingContext("property", { area: pArea, cause: pCause, stateCode: claimState, freshPricing: mergedPricing });
   }
   return "";
 })()}
@@ -716,6 +723,7 @@ ACCURACY RULES:
         location,
         date,
         state: claimState,
+        pricingSource: mergedPricing?.source || "reference",
         assessment,
         validation,
         vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, mileage: vMileage } : null,
@@ -919,7 +927,7 @@ ACCURACY RULES:
             }} />
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: palette.textDim }}>
-            {progress < 30 ? "Processing images..." : progress < 60 ? "Identifying damage areas..." : progress < 90 ? "Estimating repair costs..." : "Generating report..."}
+            {progress < 15 ? "Fetching current market prices..." : progress < 35 ? "Processing images..." : progress < 65 ? "Identifying damage areas..." : progress < 90 ? "Estimating repair costs..." : "Generating report..."}
           </div>
         </div>
       ) : (
@@ -1511,6 +1519,22 @@ function ReportView({ claim, onBack }) {
         }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
             Pricing Validation
+            {claim.pricingSource === "live" && (
+              <span style={{
+                fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
+                background: palette.successSoft, color: palette.success,
+              }}>
+                Live Prices
+              </span>
+            )}
+            {claim.pricingSource !== "live" && (
+              <span style={{
+                fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
+                background: palette.surfaceAlt, color: palette.textDim,
+              }}>
+                Reference Prices
+              </span>
+            )}
             <span style={{
               fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
               background: claim.validation.warnings === 0 ? palette.successSoft : palette.warningSoft,
