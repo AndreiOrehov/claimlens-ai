@@ -485,6 +485,50 @@ function NewClaimView({ onSubmit }) {
   const [pYearBuilt, setPYearBuilt] = useState("");
   const [pAddress, setPAddress] = useState("");
   const [geoLoading, setGeoLoading] = useState(false);
+  const [addrSuggestions, setAddrSuggestions] = useState([]);
+  const [addrShowDropdown, setAddrShowDropdown] = useState(false);
+  const addrTimerRef = useRef(null);
+
+  // Format Nominatim address into USPS style: "123 Main St, Los Angeles, CA 90034"
+  const formatUSPS = (addr) => {
+    const street = [addr.house_number, addr.road].filter(Boolean).join(" ");
+    const city = addr.city || addr.town || addr.village || addr.hamlet || "";
+    const stateObj = US_STATES.find(s => s.label.toLowerCase() === (addr.state || "").toLowerCase());
+    const stateCode = stateObj?.value || addr.state || "";
+    const zip = addr.postcode || "";
+    return [street, city, stateCode && zip ? `${stateCode} ${zip}` : stateCode || zip].filter(Boolean).join(", ");
+  };
+
+  // Debounced address autocomplete via Nominatim
+  const handleAddrInput = (val) => {
+    setPAddress(val);
+    if (addrTimerRef.current) clearTimeout(addrTimerRef.current);
+    if (val.length < 3) { setAddrSuggestions([]); setAddrShowDropdown(false); return; }
+    addrTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&addressdetails=1&limit=5&countrycodes=us`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        const items = data.map(d => ({
+          display: formatUSPS(d.address),
+          address: d.address,
+        })).filter(d => d.display.length > 3);
+        setAddrSuggestions(items);
+        setAddrShowDropdown(items.length > 0);
+      } catch { setAddrSuggestions([]); setAddrShowDropdown(false); }
+    }, 400);
+  };
+
+  const selectAddrSuggestion = (item) => {
+    setPAddress(item.display);
+    setAddrShowDropdown(false);
+    setAddrSuggestions([]);
+    // Auto-select state
+    const stateMatch = US_STATES.find(s => s.label.toLowerCase() === (item.address.state || "").toLowerCase());
+    if (stateMatch) setClaimState(stateMatch.value);
+  };
 
   // Shared fields
   const [claimState, setClaimState] = useState("");
@@ -1079,15 +1123,41 @@ ACCURACY RULES:
               </label>
               <div style={{ position: "relative" }}>
                 <input
-                  type="text" value={pAddress} onChange={(e) => setPAddress(e.target.value)} placeholder="123 Main St, City"
+                  type="text" value={pAddress} onChange={(e) => handleAddrInput(e.target.value)} placeholder="Start typing address..."
+                  autoComplete="off"
                   style={{
                     width: "100%", padding: "10px 42px 10px 14px", borderRadius: 8, border: `1px solid ${palette.border}`,
                     background: palette.surfaceAlt, color: palette.text, fontSize: 14, fontFamily: font,
                     outline: "none", boxSizing: "border-box", transition: "border-color 0.2s",
                   }}
-                  onFocus={(e) => e.target.style.borderColor = palette.accent}
-                  onBlur={(e) => e.target.style.borderColor = palette.border}
+                  onFocus={(e) => { e.target.style.borderColor = palette.accent; if (addrSuggestions.length > 0) setAddrShowDropdown(true); }}
+                  onBlur={(e) => { e.target.style.borderColor = palette.border; setTimeout(() => setAddrShowDropdown(false), 200); }}
                 />
+                {/* Address autocomplete dropdown */}
+                {addrShowDropdown && addrSuggestions.length > 0 && (
+                  <div style={{
+                    position: "absolute", top: "100%", left: 0, right: 42, zIndex: 50,
+                    background: palette.surface, border: `1px solid ${palette.border}`,
+                    borderRadius: "0 0 8px 8px", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                    maxHeight: 200, overflowY: "auto",
+                  }}>
+                    {addrSuggestions.map((item, idx) => (
+                      <div key={idx}
+                        onMouseDown={(e) => { e.preventDefault(); selectAddrSuggestion(item); }}
+                        style={{
+                          padding: "10px 14px", fontSize: 13, color: palette.text, cursor: "pointer",
+                          borderBottom: idx < addrSuggestions.length - 1 ? `1px solid ${palette.border}` : "none",
+                          transition: "background 0.15s",
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = palette.surfaceAlt}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span style={{ marginRight: 6, color: palette.accent }}>📍</span>
+                        {item.display}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   title="Detect my location"
