@@ -182,7 +182,7 @@ Next to "Pricing Validation" header, show:
 - Gemini free tier: 15 requests per minute — sufficient for MVP
 - localStorage limit: ~5-10MB — each cache entry ~2KB, supports ~5000 unique combinations
 - Google Search grounding does not guarantee structured responses — robust JSON parsing required
-- API key (`AIzaSyA4SyLpBF2uCJe0142lJkFPXU2BNIjHTyg`) is shared with photo analysis — same rate limits apply
+- API key (via VITE_GEMINI_API_KEY env var) is shared with photo analysis — same rate limits apply
 - `pricing-db.js` local data (v1.0.0, 2025-06) remains the source of truth for validation
 
 ## Out of Scope

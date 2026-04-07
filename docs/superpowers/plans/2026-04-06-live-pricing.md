@@ -30,7 +30,7 @@ Add after the closing `}` of `buildPricingContext` (line 439) and before the `//
 
 ```javascript
 // --- Live pricing cache helpers ---
-const GEMINI_API_KEY = "AIzaSyA4SyLpBF2uCJe0142lJkFPXU2BNIjHTyg";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const CACHE_TTL = 86400000; // 24 hours in ms
 
 export function getCacheKey(type, options) {
