@@ -199,7 +199,7 @@ function AuthScreen({ onLogin }) {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <img src="/icon.png" alt="ClaimPilot AI" style={{
-            width: 44, height: 44, borderRadius: 12,
+            width: 57, height: 57, borderRadius: 14,
             boxShadow: palette.glowStrong,
           }} />
           <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", background: `linear-gradient(135deg, #E8EDF5, ${palette.accent})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ClaimPilot AI</span>
@@ -312,7 +312,7 @@ function Dashboard({ user, onLogout }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src="/icon.png" alt="" style={{
-            width: 34, height: 34, borderRadius: 9,
+            width: 44, height: 44, borderRadius: 11,
             boxShadow: palette.glow,
           }} />
           <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>ClaimPilot AI</span>
