@@ -484,6 +484,7 @@ function NewClaimView({ onSubmit }) {
   const [pSqft, setPSqft] = useState("");
   const [pYearBuilt, setPYearBuilt] = useState("");
   const [pAddress, setPAddress] = useState("");
+  const [geoLoading, setGeoLoading] = useState(false);
 
   // Shared fields
   const [claimState, setClaimState] = useState("");
@@ -1003,7 +1004,75 @@ ACCURACY RULES:
             <Icons.Home /> Property Information
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
-            <Input label="Property Address" value={pAddress} onChange={setPAddress} placeholder="123 Main St, City" />
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: palette.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Property Address
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text" value={pAddress} onChange={(e) => setPAddress(e.target.value)} placeholder="123 Main St, City"
+                  style={{
+                    width: "100%", padding: "10px 42px 10px 14px", borderRadius: 8, border: `1px solid ${palette.border}`,
+                    background: palette.surfaceAlt, color: palette.text, fontSize: 14, fontFamily: font,
+                    outline: "none", boxSizing: "border-box", transition: "border-color 0.2s",
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = palette.accent}
+                  onBlur={(e) => e.target.style.borderColor = palette.border}
+                />
+                <button
+                  type="button"
+                  title="Detect my location"
+                  onClick={async () => {
+                    if (!navigator.geolocation) return setPAddress("Geolocation not supported");
+                    setGeoLoading(true);
+                    navigator.geolocation.getCurrentPosition(
+                      async (pos) => {
+                        try {
+                          const { latitude, longitude } = pos.coords;
+                          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`, {
+                            headers: { "Accept-Language": "en" },
+                          });
+                          const data = await res.json();
+                          if (data.address) {
+                            const a = data.address;
+                            const parts = [a.house_number, a.road, a.city || a.town || a.village, a.state].filter(Boolean);
+                            setPAddress(parts.join(", "));
+                            // Auto-select state
+                            const stateMatch = US_STATES.find(s => s.label.toLowerCase() === (a.state || "").toLowerCase());
+                            if (stateMatch && !claimState) setClaimState(stateMatch.value);
+                          } else {
+                            setPAddress(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+                          }
+                        } catch { setPAddress("Could not resolve address"); }
+                        setGeoLoading(false);
+                      },
+                      () => { setPAddress("Location access denied"); setGeoLoading(false); },
+                      { enableHighAccuracy: true, timeout: 10000 }
+                    );
+                  }}
+                  style={{
+                    position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)",
+                    background: geoLoading ? palette.surfaceAlt : "transparent", border: "none",
+                    cursor: geoLoading ? "wait" : "pointer", padding: 6, borderRadius: 6,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) => { if (!geoLoading) e.currentTarget.style.background = palette.surfaceAlt; }}
+                  onMouseLeave={(e) => { if (!geoLoading) e.currentTarget.style.background = "transparent"; }}
+                >
+                  {geoLoading ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={palette.accent} strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                      <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={palette.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
             <Select label="State *" value={claimState} onChange={setClaimState} options={US_STATES} placeholder="Select state..." />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginTop: 12 }}>
