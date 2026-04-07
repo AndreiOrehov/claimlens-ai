@@ -674,29 +674,35 @@ Respond ONLY with a valid JSON object (no markdown, no backticks):
   "damages": [
     {
       "component": "Name of damaged part/area",
-      "description": "What happened to it",
+      "description": "What happened to it — describe SPECIFIC visual evidence",
       "severity": "minor|moderate|severe",
+      "estimated_cost_low": number,
+      "estimated_cost_high": number
+    }
+  ],
+  "potential_damages": [
+    {
+      "component": "Name of part likely damaged but NOT visible in photos",
+      "reason": "Why you believe this part is likely damaged (e.g. 'fire damage to adjacent areas suggests...')",
       "estimated_cost_low": number,
       "estimated_cost_high": number
     }
   ],
   "total_estimate_low": number,
   "total_estimate_high": number,
-  "recommendations": ["List of recommended next steps"],
-  "flags": ["Any red flags or concerns"],
+  "recommendations": ["3-5 actionable next steps, no duplicates"],
+  "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
 }
 
 ACCURACY RULES:
-1. List ONLY damage confirmed by visual evidence in the photos. Do NOT assume hidden damage.
-2. For each damaged component, describe the SPECIFIC visual evidence you see (e.g. "dent visible on lower section" not just "damaged").
-3. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add it to "flags" as "unconfirmed: [description]" — do NOT include it in the damages array.
+1. "damages" array: ONLY damage confirmed by visual evidence in the photos. For each item, describe the SPECIFIC visual evidence you see (e.g. "dent visible on lower section" not just "damaged").
+2. "potential_damages" array: Parts you CANNOT see in photos but believe are likely damaged based on the vehicle model, damage pattern, or adjacent damage. For example: if there's fire damage in the cabin, the sunroof (which this model has) is likely affected too — put it here, NOT in "damages".
+3. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add it to "flags" as "unconfirmed: [description]".
 4. Be precise about location: specify left/right, front/rear, upper/lower based on what photos show.
 5. Use the PRICING REFERENCE DATA above as your baseline for cost estimates.
-6. Accuracy over completeness: false positives (claiming damage that isn't there) are worse than false negatives (missing real damage). When genuinely uncertain, leave it out.
-7. NEVER infer damage based on vehicle model knowledge. You may know a vehicle has a sunroof, third-row seats, or other features — but if you cannot SEE the damage in the photos, do NOT include it. Only report what is VISUALLY CONFIRMED.
-8. Keep recommendations to 3-5 actionable items maximum. No duplicates or near-duplicates.
-9. Keep flags to 3-5 items maximum. Only include genuinely distinct concerns.`;
+6. total_estimate_low and total_estimate_high should ONLY include "damages" (visually confirmed). Do NOT add potential_damages to the totals.
+7. Keep recommendations to 3-5 items. Keep flags to 3-5 items.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
@@ -841,6 +847,24 @@ ACCURACY RULES:
         // Average confidence
         const avgConf = assessments.reduce((s, a) => s + (a.confidence || 0), 0) / assessments.length;
 
+        // Merge potential_damages (deduplicate by component name)
+        const potentialMap = {};
+        assessments.forEach(a => {
+          (a.potential_damages || []).forEach(pd => {
+            const key = normalizeComponent(pd.component);
+            if (!potentialMap[key]) potentialMap[key] = { ...pd, count: 1 };
+            else {
+              potentialMap[key].count++;
+              potentialMap[key].estimated_cost_low = Math.round((potentialMap[key].estimated_cost_low + (pd.estimated_cost_low || 0)) / 2);
+              potentialMap[key].estimated_cost_high = Math.round((potentialMap[key].estimated_cost_high + (pd.estimated_cost_high || 0)) / 2);
+              if ((pd.reason || "").length > (potentialMap[key].reason || "").length) potentialMap[key].reason = pd.reason;
+            }
+          });
+        });
+        const potentialDamages = Object.values(potentialMap).map(({ count, ...rest }) => rest);
+        const potentialTotalLow = potentialDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
+        const potentialTotalHigh = potentialDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+
         return {
           summary: assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0].summary,
           damage_type: assessments[0].damage_type,
@@ -849,6 +873,9 @@ ACCURACY RULES:
           damages: mergedDamages,
           total_estimate_low: totalLow,
           total_estimate_high: totalHigh,
+          potential_damages: potentialDamages,
+          potential_total_low: potentialTotalLow,
+          potential_total_high: potentialTotalHigh,
           recommendations: allRecs,
           flags: allFlags,
           repair_vs_replace: pickMostCommon(assessments, "repair_vs_replace"),
@@ -1260,6 +1287,11 @@ function ReportView({ claim, onBack }) {
     }).join("");
     const recs = (a.recommendations||[]).map((r,i) => `<li>${r}</li>`).join("");
     const flags = (a.flags||[]).map((f,i) => `<li>${f}</li>`).join("");
+    const potentialRows = (a.potential_damages||[]).map((pd, i) => `<tr>
+      <td class="tc">${i + 1}. ${pd.component}</td>
+      <td class="tc" style="font-style:italic;color:#6B7280;">${pd.reason}</td>
+      <td class="tc" style="text-align:right;font-weight:600;">$${(pd.estimated_cost_low||0).toLocaleString()} – $${(pd.estimated_cost_high||0).toLocaleString()}</td>
+    </tr>`).join("");
 
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>ClaimLens Report ${claim.id}</title>
@@ -1399,6 +1431,16 @@ function ReportView({ claim, onBack }) {
       <tbody>${damageRows}</tbody>
     </table>
   </div>
+
+  ${potentialRows ? `
+  <div class="section" style="margin-top:20px;">
+    <div class="section-title"><span class="dot" style="background:#F59E0B;"></span> Potential Additional Damage <span style="font-size:9px;font-weight:400;color:#6B7280;text-transform:none;letter-spacing:0;">(not visible in photos — requires physical inspection)</span></div>
+    <table>
+      <thead><tr><th>Component</th><th>Reason</th><th>Est. Cost</th></tr></thead>
+      <tbody>${potentialRows}</tbody>
+    </table>
+    ${a.potential_total_low ? `<div style="text-align:right;margin-top:8px;font-size:11px;color:#92400E;font-weight:600;">Potential additional: $${(a.potential_total_low||0).toLocaleString()} – $${(a.potential_total_high||0).toLocaleString()}</div>` : ""}
+  </div>` : ""}
 
   ${recs ? `
   <div class="section new-page">
@@ -1646,6 +1688,48 @@ function ReportView({ claim, onBack }) {
           })}
         </div>
       </div>
+
+      {/* Potential Additional Damage */}
+      {a.potential_damages?.length > 0 && (
+        <div style={{
+          padding: 20, borderRadius: 12, border: `1px dashed ${palette.border}`,
+          background: palette.surfaceAlt, marginBottom: 16,
+        }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: palette.warning }}>⚡</span> Potential Additional Damage
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 12,
+              background: palette.warningSoft, color: palette.warning,
+            }}>
+              Not visible in photos
+            </span>
+          </h3>
+          <p style={{ fontSize: 12, color: palette.textDim, margin: 0, marginBottom: 12 }}>
+            Based on vehicle model and damage pattern, these parts may also be affected. Requires physical inspection to confirm.
+          </p>
+          {a.potential_total_low > 0 && (
+            <div style={{ fontSize: 13, fontWeight: 600, color: palette.warning, marginBottom: 12 }}>
+              Potential additional cost: ${a.potential_total_low?.toLocaleString()} – ${a.potential_total_high?.toLocaleString()}
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {a.potential_damages.map((pd, i) => (
+              <div key={i} style={{
+                padding: 12, borderRadius: 10, background: palette.surface,
+                border: `1px solid ${palette.border}`,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{pd.component}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: palette.textMuted }}>
+                    ${pd.estimated_cost_low?.toLocaleString()}–${pd.estimated_cost_high?.toLocaleString()}
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: palette.textDim, margin: 0, lineHeight: 1.5, fontStyle: "italic" }}>{pd.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pricing Validation */}
       {claim.validation && claim.validation.totalChecked > 0 && (
