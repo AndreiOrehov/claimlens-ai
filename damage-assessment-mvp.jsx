@@ -151,7 +151,54 @@ const Icons = {
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
     </svg>
   ),
+  User: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </svg>
+  ),
+  ChevronDown: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  ),
 };
+
+// --- Animated Back Arrow ---
+function BackArrow({ onClick, label = "Back", centered = false }) {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <div style={{ display: "flex", justifyContent: centered ? "center" : "flex-start", animation: "fadeIn 0.35s ease-out" }}>
+      <button
+        onClick={onClick}
+        onMouseDown={() => setPressed(true)}
+        onMouseUp={() => setPressed(false)}
+        onMouseLeave={() => setPressed(false)}
+        style={{
+          background: "none", border: "none", cursor: "pointer", fontFamily: font,
+          fontSize: 13, fontWeight: 500, color: palette.accent, padding: "6px 0",
+          display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
+          transition: "all 0.2s ease",
+          transform: pressed ? "translateX(-4px) scale(0.97)" : "translateX(0)",
+          filter: pressed ? `drop-shadow(0 0 8px ${palette.accentGlow})` : "none",
+        }}
+      >
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 28, height: 28, borderRadius: 8,
+          background: palette.accentSoft, border: `1px solid ${palette.accent}30`,
+          boxShadow: `0 0 12px ${palette.accent}20`,
+          transition: "all 0.25s ease",
+          ...(pressed ? { boxShadow: `0 0 20px ${palette.accent}50`, background: palette.accent + "25" } : {}),
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={palette.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+          </svg>
+        </span>
+        {label}
+      </button>
+    </div>
+  );
+}
 
 // ============================================================
 // Auth Screen
@@ -281,6 +328,81 @@ function Input({ label, value, onChange, placeholder, type = "text", onKeyDown }
   );
 }
 
+// --- Profile Dropdown ---
+function ProfileDropdown({ user, claimsCount, onHistory, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(!open)} style={{
+        display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
+        border: `1px solid ${open ? palette.accent + "40" : palette.border}`,
+        cursor: "pointer", fontFamily: font, fontSize: 11, fontWeight: 500,
+        background: open ? palette.accentSoft : "transparent",
+        color: open ? palette.accent : palette.textMuted,
+        boxShadow: open ? palette.glow : "none",
+        transition: "all 0.2s", whiteSpace: "nowrap",
+      }}>
+        <Icons.User /> My&nbsp;Profile
+        <span style={{
+          transition: "transform 0.2s", display: "inline-flex",
+          transform: open ? "rotate(180deg)" : "rotate(0)",
+        }}>
+          <Icons.ChevronDown />
+        </span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0, minWidth: 180,
+          background: palette.surface, border: `1px solid ${palette.border}`, borderRadius: 12,
+          boxShadow: palette.cardShadow, overflow: "hidden", zIndex: 200,
+          animation: "dropdownIn 0.18s ease-out",
+        }}>
+          <div style={{ padding: "10px 14px", borderBottom: `1px solid ${palette.border}` }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: palette.text }}>{user.name || "User"}</div>
+            <div style={{ fontSize: 11, color: palette.textDim, marginTop: 2 }}>{user.email}</div>
+          </div>
+          <button onClick={() => { setOpen(false); onHistory(); }} style={{
+            display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px",
+            border: "none", background: "transparent", cursor: "pointer", fontFamily: font,
+            fontSize: 13, color: palette.textMuted, transition: "all 0.15s", textAlign: "left",
+          }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = palette.accentSoft; e.currentTarget.style.color = palette.accent; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = palette.textMuted; }}
+          >
+            <Icons.History /> History
+            {claimsCount > 0 && (
+              <span style={{
+                marginLeft: "auto", background: `linear-gradient(135deg, ${palette.accent}, #6366F1)`,
+                color: "#fff", fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 10,
+                boxShadow: "0 0 8px rgba(74,144,255,0.4)",
+              }}>{claimsCount}</span>
+            )}
+          </button>
+          <button onClick={() => { setOpen(false); onLogout(); }} style={{
+            display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px",
+            border: "none", borderTop: `1px solid ${palette.border}`, background: "transparent",
+            cursor: "pointer", fontFamily: font, fontSize: 13, color: palette.danger, textAlign: "left",
+            transition: "all 0.15s",
+          }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = palette.dangerSoft; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            <Icons.LogOut /> Log out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // Main App (Dashboard)
 // ============================================================
@@ -327,24 +449,13 @@ function Dashboard({ user, onLogout }) {
             <span style={{ fontSize: 8.5, color: palette.textDim, letterSpacing: "0.12em", textTransform: "uppercase", display: "block" }}>Estimate Before You Inspect</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={() => setView("cabinet")} style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8,
-            border: `1px solid ${view === "cabinet" ? palette.accent + "40" : palette.border}`,
-            cursor: "pointer", fontFamily: font, fontSize: 12, fontWeight: 500,
-            background: view === "cabinet" ? palette.accentSoft : "transparent",
-            color: view === "cabinet" ? palette.accent : palette.textMuted,
-            boxShadow: view === "cabinet" ? palette.glow : "none",
-            transition: "all 0.2s",
-          }}>
-            <Icons.History /> {user.name ? user.name.split(" ")[0] : "Cabinet"}
-            {claims.length > 0 && (
-              <span style={{
-                background: `linear-gradient(135deg, ${palette.accent}, #6366F1)`, color: "#fff", fontSize: 10, fontWeight: 700,
-                padding: "1px 6px", borderRadius: 10, boxShadow: "0 0 8px rgba(74,144,255,0.4)",
-              }}>{claims.length}</span>
-            )}
-          </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", position: "relative" }}>
+          <ProfileDropdown
+            user={user}
+            claimsCount={claims.length}
+            onHistory={() => { setView("cabinet"); }}
+            onLogout={onLogout}
+          />
         </div>
       </nav>
 
@@ -354,9 +465,11 @@ function Dashboard({ user, onLogout }) {
         {/* HOME VIEW — New Claim only */}
         {view === "home" && (
           <div>
-            <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 400, marginBottom: 20, letterSpacing: "-0.01em", color: palette.textMuted, whiteSpace: "nowrap" }}>
-              New Claim — select damage type
-            </h2>
+            <div style={{ display: "flex", justifyContent: "center", animation: "fadeIn 0.35s ease-out" }}>
+              <h2 style={{ fontSize: isMobile ? 13 : 14.4, fontWeight: 400, letterSpacing: "-0.01em", color: palette.textMuted, whiteSpace: "nowrap", textAlign: "center", padding: "6px 0", marginBottom: 12, lineHeight: "28px" }}>
+                New Claim — select damage type
+              </h2>
+            </div>
 
             <div style={{
               display: "flex", gap: 14, flexDirection: isMobile ? "column" : "row",
@@ -364,11 +477,12 @@ function Dashboard({ user, onLogout }) {
               {[
                 { key: "auto", icon: <Icons.Car />, title: "Vehicle Damage", desc: "Collision, dents, scratches, glass damage", color: palette.accent },
                 { key: "property", icon: <Icons.Home />, title: "Property Damage", desc: "Water, fire, storm, structural damage", color: "#8B5CF6" },
-              ].map((t) => (
+              ].map((t, i) => (
                 <button key={t.key} onClick={() => startNewClaim(t.key)} style={{
                   flex: 1, padding: isMobile ? 20 : 24, borderRadius: 16, cursor: "pointer", textAlign: "left",
                   border: `1.5px solid ${palette.border}`, background: palette.surface,
                   transition: "all 0.3s", boxShadow: "none", fontFamily: font,
+                  animation: `slideUp 0.4s ease-out ${i * 0.1}s both`,
                 }}
                   onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.color + "60"; e.currentTarget.style.boxShadow = `0 0 20px ${t.color}20, 0 0 60px ${t.color}08`; }}
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = palette.border; e.currentTarget.style.boxShadow = "none"; }}
@@ -393,11 +507,12 @@ function Dashboard({ user, onLogout }) {
           </div>
         )}
 
-        {/* CABINET VIEW — History + Logout */}
+        {/* CABINET VIEW — History */}
         {view === "cabinet" && (
           <div>
+            <BackArrow onClick={() => { setView("home"); setClaimType(null); }} label="Back to Dashboard" centered />
             <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 400, marginBottom: 4, letterSpacing: "-0.01em", color: palette.textMuted }}>
-              My Cabinet
+              My History
             </h2>
             <p style={{ color: palette.textDim, fontSize: 13, fontWeight: 300, marginBottom: 20 }}>
               {user.name || user.email} · {claims.length} claim{claims.length !== 1 ? "s" : ""}
@@ -414,26 +529,13 @@ function Dashboard({ user, onLogout }) {
                 <p style={{ color: palette.textMuted, fontSize: 14 }}>No claims yet. Start your first assessment.</p>
               </div>
             )}
-
-            <button onClick={onLogout} style={{
-              marginTop: 32, display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10,
-              border: `1px solid ${palette.danger}30`, cursor: "pointer", fontFamily: font, fontSize: 13, fontWeight: 500,
-              background: palette.dangerSoft, color: palette.danger, transition: "all 0.2s",
-            }}>
-              <Icons.LogOut /> Log out
-            </button>
           </div>
         )}
 
         {/* NEW CLAIM VIEW */}
         {view === "new" && claimType && (
-          <div>
-            <button onClick={() => { setView("home"); setClaimType(null); }} style={{
-              background: "none", border: "none", color: palette.accent, cursor: "pointer",
-              fontFamily: font, fontSize: 13, padding: 0, marginBottom: 16, display: "block",
-            }}>
-              ← Back to Dashboard
-            </button>
+          <div style={{ animation: "slideUp 0.35s ease-out" }}>
+            <BackArrow onClick={() => { setView("home"); setClaimType(null); }} label="Back to Dashboard" centered />
             <NewClaimView onSubmit={handleNewClaim} initialType={claimType} />
           </div>
         )}
@@ -1173,17 +1275,20 @@ ACCURACY RULES:
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+          width: 43, height: 43, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center",
           background: type === "auto" ? `${palette.accent}15` : "#8B5CF615",
           color: type === "auto" ? palette.accent : "#8B5CF6",
+          fontSize: 0,
         }}>
-          {type === "auto" ? <Icons.Car /> : <Icons.Home />}
+          <span style={{ transform: "scale(1.38)", display: "inline-flex" }}>
+            {type === "auto" ? <Icons.Car /> : <Icons.Home />}
+          </span>
         </div>
         <div>
-          <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em" }}>
+          <h2 style={{ fontSize: isMobile ? 15 : 17.5, fontWeight: 700, margin: 0, letterSpacing: "0.04em", lineHeight: 1.3 }}>
             {type === "auto" ? "Vehicle Damage" : "Property Damage"} Assessment
           </h2>
-          <p style={{ color: palette.textDim, fontSize: 13, margin: 0 }}>
+          <p style={{ color: palette.textDim, fontSize: 9.1, margin: 0, lineHeight: 1.3 }}>
             Upload photos and our AI will estimate repair costs.
           </p>
         </div>
@@ -1195,8 +1300,12 @@ ACCURACY RULES:
           padding: 16, borderRadius: 12, border: `1px solid ${palette.border}`,
           background: palette.surface, marginBottom: 20,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: palette.text, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icons.Car /> Vehicle Information
+          <div style={{
+            fontSize: 14.3, fontWeight: 600, color: palette.white, marginBottom: 16, paddingBottom: 12,
+            textAlign: "center", textTransform: "uppercase", letterSpacing: "0.12em",
+            borderBottom: `1px solid ${palette.border}`,
+          }}>
+            Vehicle Information
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <Select label="Make *" value={vMake} onChange={handleMakeChange} options={makes} placeholder="Select make..." />
@@ -1221,8 +1330,12 @@ ACCURACY RULES:
           padding: 16, borderRadius: 12, border: `1px solid ${palette.border}`,
           background: palette.surface, marginBottom: 20,
         }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: palette.text, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <Icons.Home /> Property Information
+          <div style={{
+            fontSize: 14.3, fontWeight: 600, color: palette.white, marginBottom: 16, paddingBottom: 12,
+            textAlign: "center", textTransform: "uppercase", letterSpacing: "0.12em",
+            borderBottom: `1px solid ${palette.border}`,
+          }}>
+            Property Information
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <div>
@@ -1924,12 +2037,7 @@ function ReportView({ claim, onBack }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <button onClick={onBack} style={{
-            background: "none", border: "none", color: palette.accent, cursor: "pointer",
-            fontFamily: font, fontSize: 13, padding: 0, marginBottom: 4, display: "block",
-          }}>
-            ← Back to Dashboard
-          </button>
+          <BackArrow onClick={onBack} label="Back to Dashboard" centered />
           <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0 }}>Assessment Report</h2>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
