@@ -43,24 +43,29 @@ const DB = {
 
 // --- Styles ---
 const palette = {
-  bg: "#0B0F1A",
-  surface: "#131825",
-  surfaceAlt: "#1A2035",
-  border: "#232B3E",
-  borderLight: "#2D3754",
-  accent: "#3B82F6",
-  accentHover: "#2563EB",
-  accentSoft: "rgba(59,130,246,0.12)",
-  danger: "#EF4444",
-  dangerSoft: "rgba(239,68,68,0.12)",
-  warning: "#F59E0B",
-  warningSoft: "rgba(245,158,11,0.12)",
-  success: "#10B981",
-  successSoft: "rgba(16,185,129,0.12)",
-  text: "#E2E8F0",
-  textMuted: "#94A3B8",
-  textDim: "#64748B",
+  bg: "#080C18",
+  surface: "#0E1525",
+  surfaceAlt: "#141C30",
+  border: "#1B2540",
+  borderLight: "#243052",
+  accent: "#4A90FF",
+  accentHover: "#3B7BF0",
+  accentSoft: "rgba(74,144,255,0.10)",
+  accentGlow: "rgba(74,144,255,0.25)",
+  danger: "#FF5A5A",
+  dangerSoft: "rgba(255,90,90,0.10)",
+  warning: "#FFB347",
+  warningSoft: "rgba(255,179,71,0.10)",
+  success: "#34D399",
+  successSoft: "rgba(52,211,153,0.10)",
+  text: "#E8EDF5",
+  textMuted: "#8B9DC3",
+  textDim: "#5A6B8A",
   white: "#FFFFFF",
+  glow: "0 0 20px rgba(74,144,255,0.15), 0 0 60px rgba(74,144,255,0.05)",
+  glowStrong: "0 0 20px rgba(74,144,255,0.3), 0 0 80px rgba(74,144,255,0.1)",
+  cardShadow: "0 4px 24px rgba(0,0,0,0.4), 0 0 40px rgba(74,144,255,0.06)",
+  gradientBg: "radial-gradient(ellipse at 50% 0%, rgba(74,144,255,0.08) 0%, transparent 60%)",
 };
 
 const font = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
@@ -182,24 +187,27 @@ function AuthScreen({ onLogin }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: palette.bg, display: "flex", alignItems: "center", justifyContent: "center",
+      minHeight: "100vh", background: palette.bg, backgroundImage: palette.gradientBg,
+      display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: font, color: palette.text, padding: 20,
     }}>
       <div style={{
-        width: "100%", maxWidth: 420, background: palette.surface, borderRadius: 16,
+        width: "100%", maxWidth: 420, background: palette.surface, borderRadius: 20,
         border: `1px solid ${palette.border}`, padding: isMobile ? 20 : 40,
+        boxShadow: palette.cardShadow,
       }}>
         {/* Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 10, background: `linear-gradient(135deg, ${palette.accent}, #8B5CF6)`,
+            width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, #1E3A8A, ${palette.accent})`,
             display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: palette.glowStrong,
           }}>
             <Icons.Shield />
           </div>
-          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>ClaimPilot AI</span>
+          <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", background: `linear-gradient(135deg, #E8EDF5, ${palette.accent})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ClaimPilot AI</span>
         </div>
-        <p style={{ color: palette.textMuted, fontSize: 14, marginBottom: 32, marginTop: 4 }}>
+        <p style={{ color: palette.textDim, fontSize: 13, marginBottom: 32, marginTop: 4, letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 500 }}>
           Estimate Before You Inspect
         </p>
 
@@ -297,18 +305,20 @@ function Dashboard({ user, onLogout }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: palette.bg, fontFamily: font, color: palette.text }}>
+    <div style={{ minHeight: "100vh", background: palette.bg, backgroundImage: palette.gradientBg, fontFamily: font, color: palette.text }}>
       {/* Top nav */}
       <nav style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "12px 24px", borderBottom: `1px solid ${palette.border}`,
-        background: palette.surface, position: "sticky", top: 0, zIndex: 100,
+        background: `${palette.surface}E6`, backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+        position: "sticky", top: 0, zIndex: 100,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: `linear-gradient(135deg, ${palette.accent}, #8B5CF6)`,
+            width: 34, height: 34, borderRadius: 9,
+            background: `linear-gradient(135deg, #122184, ${palette.accent})`,
             display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: palette.glow,
           }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -341,16 +351,19 @@ function NavBtn({ icon, label, active, onClick, badge }) {
   return (
     <button onClick={onClick} style={{
       display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8,
-      border: "none", cursor: "pointer", fontFamily: font, fontSize: 13, fontWeight: 500,
+      border: active ? `1px solid ${palette.accent}40` : "1px solid transparent",
+      cursor: "pointer", fontFamily: font, fontSize: 13, fontWeight: 500,
       background: active ? palette.accentSoft : "transparent",
       color: active ? palette.accent : palette.textMuted,
+      boxShadow: active ? palette.glow : "none",
       transition: "all 0.2s", position: "relative",
     }}>
       {icon} {label}
       {badge > 0 && (
         <span style={{
-          background: palette.accent, color: "#fff", fontSize: 10, fontWeight: 700,
+          background: `linear-gradient(135deg, ${palette.accent}, #6366F1)`, color: "#fff", fontSize: 10, fontWeight: 700,
           padding: "1px 6px", borderRadius: 10, marginLeft: 2,
+          boxShadow: "0 0 8px rgba(74,144,255,0.4)",
         }}>
           {badge}
         </span>
@@ -1070,9 +1083,10 @@ ACCURACY RULES:
           { key: "property", icon: <Icons.Home />, label: "Property Damage", desc: "Water, fire, storm, structural" },
         ].map((t) => (
           <button key={t.key} onClick={() => handleTypeChange(t.key)} style={{
-            flex: 1, padding: 16, borderRadius: 12, border: `1.5px solid ${type === t.key ? palette.accent : palette.border}`,
+            flex: 1, padding: 16, borderRadius: 14, border: `1.5px solid ${type === t.key ? palette.accent + "60" : palette.border}`,
             background: type === t.key ? palette.accentSoft : palette.surface,
-            cursor: "pointer", textAlign: "left", transition: "all 0.2s",
+            cursor: "pointer", textAlign: "left", transition: "all 0.3s",
+            boxShadow: type === t.key ? palette.glow : "none",
           }}>
             <div style={{ color: type === t.key ? palette.accent : palette.textMuted, marginBottom: 6 }}>{t.icon}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>{t.label}</div>
@@ -1322,15 +1336,16 @@ ACCURACY RULES:
 
       {/* Analyze Button / Progress */}
       {analyzing ? (
-        <div style={{ padding: 20, background: palette.surface, borderRadius: 12, border: `1px solid ${palette.border}` }}>
+        <div style={{ padding: 20, background: palette.surface, borderRadius: 14, border: `1px solid ${palette.border}`, boxShadow: palette.cardShadow }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>Analyzing damage...</span>
-            <span style={{ fontSize: 13, color: palette.textMuted }}>{Math.round(progress)}%</span>
+            <span style={{ fontSize: 13, color: palette.accent, fontWeight: 600 }}>{Math.round(progress)}%</span>
           </div>
           <div style={{ height: 6, background: palette.surfaceAlt, borderRadius: 3, overflow: "hidden" }}>
             <div style={{
-              height: "100%", background: `linear-gradient(90deg, ${palette.accent}, #8B5CF6)`,
+              height: "100%", background: `linear-gradient(90deg, #1E40AF, ${palette.accent}, #6366F1)`,
               borderRadius: 3, width: `${progress}%`, transition: "width 0.4s ease",
+              boxShadow: "0 0 12px rgba(74,144,255,0.5)",
             }} />
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: palette.textDim }}>
@@ -1339,11 +1354,13 @@ ACCURACY RULES:
         </div>
       ) : (
         <button onClick={handleAnalyze} style={{
-          width: "100%", padding: "14px 0", borderRadius: 10, border: "none",
-          background: photos.length > 0 ? `linear-gradient(135deg, ${palette.accent}, #2563EB)` : palette.surfaceAlt,
+          width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+          background: photos.length > 0 ? `linear-gradient(135deg, #1E40AF, ${palette.accent}, #6366F1)` : palette.surfaceAlt,
           color: photos.length > 0 ? "#fff" : palette.textDim,
           fontWeight: 600, fontSize: 15, cursor: photos.length > 0 ? "pointer" : "not-allowed",
-          fontFamily: font, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          fontFamily: font, transition: "all 0.3s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          boxShadow: photos.length > 0 ? palette.glowStrong : "none",
+          letterSpacing: "0.02em",
         }}>
           <Icons.Camera /> Analyze Damage ({photos.length} photo{photos.length !== 1 ? "s" : ""})
         </button>
@@ -1840,10 +1857,11 @@ function ReportView({ claim, onBack }) {
             <Icons.Eye /> Text
           </button>
           <button onClick={() => setShowPDF(true)} style={{
-            display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8,
-            border: "none", background: `linear-gradient(135deg, ${palette.accent}, #2563EB)`,
+            display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10,
+            border: "none", background: `linear-gradient(135deg, #1E40AF, ${palette.accent}, #6366F1)`,
             color: "#fff",
             cursor: "pointer", fontFamily: font, fontSize: 13, fontWeight: 600,
+            boxShadow: palette.glow,
           }}>
             <Icons.FileText /> View PDF Report
           </button>
@@ -1852,8 +1870,9 @@ function ReportView({ claim, onBack }) {
 
       {/* Summary Card */}
       <div style={{
-        padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`,
+        padding: 20, borderRadius: 16, border: `1px solid ${palette.border}`,
         background: palette.surface, marginBottom: 16,
+        boxShadow: palette.cardShadow,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <span style={{
