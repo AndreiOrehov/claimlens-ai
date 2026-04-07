@@ -2,3 +2,5 @@ node_modules/
 dist/
 .planning/
 *.log
+.env
+.env.*

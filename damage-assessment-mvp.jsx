@@ -590,10 +590,10 @@ function NewClaimView({ onSubmit }) {
     setProgress(0);
     setError("");
 
-    // Simulate progress
+    // Simulate progress (slower for 3 parallel runs)
     const progressInterval = setInterval(() => {
-      setProgress((p) => Math.min(p + Math.random() * 15, 90));
-    }, 500);
+      setProgress((p) => Math.min(p + Math.random() * 8, 85));
+    }, 600);
 
     try {
       // Fetch live pricing (or use cache/fallback)
@@ -630,6 +630,25 @@ CROSS-PHOTO ANALYSIS:
 - Scan ALL provided photos. A part may be visible as damaged or missing in one photo but not another.
 - If a part is NOT VISIBLE in any photo, do NOT include it.
 - Pay special attention to: tail lights, headlights, trim pieces, mirrors, antennas — these small parts are easy to miss.
+${type === "auto" ? `
+MANDATORY INSPECTION CHECKLIST — you MUST check EVERY zone below and report damage if found:
+EXTERIOR: front bumper, rear bumper, hood, trunk/tailgate, roof, left front fender, right front fender, left rear quarter panel, right rear quarter panel, left front door, left rear door, right front door, right rear door.
+GLASS: windshield, rear window, left front window, left rear window, right front window, right rear window, sunroof (if visible).
+LIGHTS: left headlight, right headlight, left taillight, right taillight, fog lights (if visible).
+SMALL PARTS: left mirror, right mirror, grille, front license plate area, rear license plate area, antenna, door handles, trim pieces.
+WHEELS: left front wheel/tire, right front wheel/tire, left rear wheel/tire, right rear wheel/tire.
+INTERIOR (if visible): dashboard, steering wheel, driver seat, passenger seat, rear seats, headliner, center console, door panels, airbags (deployed or not).
+ENGINE (if visible): engine compartment, visible mechanical damage.
+For each zone: if damaged → add to damages array. If intact/not visible → skip. Do NOT guess.` : ""}
+${type === "property" ? `
+MANDATORY INSPECTION CHECKLIST — you MUST check EVERY zone below:
+ROOF: shingles, flashing, gutters, soffit, fascia.
+EXTERIOR WALLS: siding, stucco, brick, paint, trim.
+WINDOWS & DOORS: all visible windows, entry doors, garage door.
+INTERIOR (if visible): walls, ceilings, floors, baseboards, crown molding.
+SYSTEMS (if visible): electrical, plumbing, HVAC.
+STRUCTURAL (if visible): foundation, framing, load-bearing walls.
+For each zone: if damaged → add to damages array. If intact/not visible → skip. Do NOT guess.` : ""}
 ${type === "auto" && vMake ? `
 VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
 Use this information to provide accurate, model-specific repair cost estimates. Consider the vehicle's market value when assessing repair vs. replace recommendations. Factor in OEM vs aftermarket parts pricing for this specific vehicle.` : ""}
@@ -678,7 +697,7 @@ ACCURACY RULES:
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
-      // --- Gemini API (Nano Banana 2) ---
+      // --- Gemini API (Nano Banana 2) — 3 parallel runs + merge ---
       const geminiParts = [];
       photos.forEach((p) => {
         const mimeType = p.data.startsWith("data:image/png") ? "image/png" : "image/jpeg";
@@ -689,21 +708,137 @@ ACCURACY RULES:
       });
       geminiParts.push({ text: systemPrompt + "\n\n" + userPrompt });
 
-      const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=AIzaSyA4SyLpBF2uCJe0142lJkFPXU2BNIjHTyg`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: geminiParts }] }),
-        }
-      );
-      const geminiData = await geminiResponse.json();
-      clearInterval(progressInterval);
-      if (geminiData.error) throw new Error(geminiData.error.message || "Gemini API error");
-      const text = geminiData.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
+      const geminiRequestBody = JSON.stringify({
+        contents: [{ parts: geminiParts }],
+        generationConfig: { temperature: 0 },
+      });
 
-      const cleaned = text.replace(/```json|```/g, "").trim();
-      const assessment = JSON.parse(cleaned);
+      const NUM_RUNS = 3;
+      console.log(`Starting ${NUM_RUNS} parallel Gemini requests...`);
+
+      const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
+        fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: geminiRequestBody }
+        )
+          .then(r => r.json())
+          .then(data => {
+            console.log(`Run ${i + 1} status: OK`);
+            if (data.error) throw new Error(data.error.message);
+            const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+            const clean = txt.replace(/```json|```/g, "").trim();
+            return JSON.parse(clean);
+          })
+          .catch(err => { console.error(`Run ${i + 1} failed:`, err.message); return null; })
+      );
+
+      const results = await Promise.all(geminiPromises);
+      clearInterval(progressInterval);
+      const validResults = results.filter(Boolean);
+      console.log(`Valid results: ${validResults.length}/${NUM_RUNS}`);
+
+      if (validResults.length === 0) throw new Error("All Gemini requests failed");
+
+      // --- Merge multiple assessments ---
+      const mergeAssessments = (assessments) => {
+        if (assessments.length === 1) return assessments[0];
+
+        // Normalize component name: sort words alphabetically so "front left window" == "left front window"
+        const normalizeComponent = (name) => {
+          const words = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort();
+          return words.join("_");
+        };
+
+        // Check if two normalized keys are similar enough to merge
+        const isSimilar = (a, b) => {
+          if (a === b) return true;
+          // One contains the other
+          if (a.includes(b) || b.includes(a)) return true;
+          // Share 70%+ of words
+          const aw = a.split("_"), bw = b.split("_");
+          const shared = aw.filter(w => bw.includes(w)).length;
+          return shared / Math.max(aw.length, bw.length) >= 0.7;
+        };
+
+        // Collect all damages by normalized component name
+        const damageMap = {};
+        const keyMapping = {}; // maps normalized keys to canonical key
+
+        assessments.forEach((a, runIdx) => {
+          (a.damages || []).forEach(d => {
+            const norm = normalizeComponent(d.component);
+            // Find existing similar key
+            let canonKey = null;
+            for (const existing of Object.keys(damageMap)) {
+              if (isSimilar(norm, existing)) { canonKey = existing; break; }
+            }
+            if (!canonKey) canonKey = norm;
+            if (!damageMap[canonKey]) damageMap[canonKey] = { component: d.component, entries: [] };
+            damageMap[canonKey].entries.push({ ...d, runIdx });
+          });
+        });
+
+        // Keep components found in 2+ runs (consensus), or all if only 1 run
+        const minVotes = assessments.length >= 3 ? 2 : 1;
+        const mergedDamages = [];
+        for (const [key, info] of Object.entries(damageMap)) {
+          const uniqueRuns = new Set(info.entries.map(e => e.runIdx)).size;
+          if (uniqueRuns >= minVotes) {
+            const entries = info.entries;
+            const avgLow = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_low || 0), 0) / entries.length);
+            const avgHigh = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_high || 0), 0) / entries.length);
+            // Pick most common severity
+            const sevCounts = {};
+            entries.forEach(e => { sevCounts[e.severity] = (sevCounts[e.severity] || 0) + 1; });
+            const topSev = Object.entries(sevCounts).sort((a, b) => b[1] - a[1])[0][0];
+            // Use longest description
+            const bestDesc = entries.sort((a, b) => (b.description || "").length - (a.description || "").length)[0].description;
+            mergedDamages.push({
+              component: info.component,
+              description: bestDesc,
+              severity: topSev,
+              estimated_cost_low: avgLow,
+              estimated_cost_high: avgHigh,
+            });
+          }
+        }
+
+        const totalLow = mergedDamages.reduce((s, d) => s + d.estimated_cost_low, 0);
+        const totalHigh = mergedDamages.reduce((s, d) => s + d.estimated_cost_high, 0);
+
+        // Pick most common severity/repair_vs_replace
+        const pickMostCommon = (arr, field) => {
+          const counts = {};
+          arr.forEach(a => { const v = a[field]; if (v) counts[v] = (counts[v] || 0) + 1; });
+          return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || arr[0]?.[field];
+        };
+
+        // Merge recommendations & flags (deduplicate)
+        const allRecs = [...new Set(assessments.flatMap(a => a.recommendations || []))];
+        const allFlags = [...new Set(assessments.flatMap(a => a.flags || []))];
+
+        // Average confidence
+        const avgConf = assessments.reduce((s, a) => s + (a.confidence || 0), 0) / assessments.length;
+
+        return {
+          summary: assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0].summary,
+          damage_type: assessments[0].damage_type,
+          severity: pickMostCommon(assessments, "severity"),
+          confidence: Math.round(avgConf * 100) / 100,
+          damages: mergedDamages,
+          total_estimate_low: totalLow,
+          total_estimate_high: totalHigh,
+          recommendations: allRecs,
+          flags: allFlags,
+          repair_vs_replace: pickMostCommon(assessments, "repair_vs_replace"),
+          _runs: assessments.length,
+          _consensus: `${mergedDamages.length} components confirmed by ${minVotes}+ of ${assessments.length} runs`,
+        };
+      };
+
+      const assessment = mergeAssessments(validResults);
+      console.log(`Merged assessment: ${assessment.damages.length} damages, ${assessment._consensus}`);
+      console.log("Merged components:", assessment.damages.map(d => d.component).join(", "));
 
       const validation = validateEstimates(
         assessment,
@@ -731,11 +866,14 @@ ACCURACY RULES:
         createdAt: new Date().toISOString(),
       };
 
+      console.log("Claim built, calling onSubmit...");
       setTimeout(() => {
         setAnalyzing(false);
         onSubmit(claim);
+        console.log("onSubmit called successfully");
       }, 600);
     } catch (err) {
+      console.error("Analysis error:", err);
       clearInterval(progressInterval);
       setAnalyzing(false);
       setError(`Analysis failed: ${err.message}. Please try again.`);
@@ -1108,8 +1246,8 @@ function ReportView({ claim, onBack }) {
   @page { size: letter; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif; color: #1F2937; background: #fff; font-size: 11px; line-height: 1.5; }
-  .page { width: 8.5in; min-height: 11in; padding: 0.6in 0.7in; position: relative; page-break-after: always; }
-  .page:last-child { page-break-after: auto; }
+  .page { width: 8.5in; padding: 0.6in 0.7in; position: relative; }
+  .new-page { page-break-before: always; padding-top: 0.3in; }
 
   /* Header */
   .header { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 14px; margin-bottom: 20px; border-bottom: 3px solid #2563EB; }
@@ -1164,7 +1302,7 @@ function ReportView({ claim, onBack }) {
   .disclaimer strong { color: #78350F; }
 
   /* Footer */
-  .footer { position: absolute; bottom: 0.5in; left: 0.7in; right: 0.7in; display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid #E5E7EB; font-size: 9px; color: #9CA3AF; }
+  .footer { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; margin-top: 30px; border-top: 1px solid #E5E7EB; font-size: 9px; color: #9CA3AF; }
 
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -1233,30 +1371,7 @@ function ReportView({ claim, onBack }) {
     <div class="section-body" style="font-style:italic;">"${claim.description}"</div>
   </div>` : ""}
 
-  <div class="footer">
-    <span>ClaimLens AI — Confidential</span>
-    <span>Page 1 of 2</span>
-  </div>
-</div>
-
-<!-- PAGE 2: Detailed Breakdown -->
-<div class="page">
-  <div class="header">
-    <div class="logo">
-      <div class="logo-mark">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      </div>
-      <div>
-        <div class="logo-text">ClaimLens AI</div>
-        <div class="logo-sub">Detailed Breakdown — Report ${claim.id}</div>
-      </div>
-    </div>
-    <div class="meta">
-      ${new Date(claim.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-    </div>
-  </div>
-
-  <div class="section">
+  <div class="section new-page">
     <div class="section-title"><span class="dot"></span> Damage Breakdown</div>
     <table>
       <thead><tr><th>Component</th><th>Severity</th><th>Description</th><th>Est. Cost</th></tr></thead>
@@ -1265,7 +1380,7 @@ function ReportView({ claim, onBack }) {
   </div>
 
   ${recs ? `
-  <div class="section">
+  <div class="section new-page">
     <div class="section-title"><span class="dot"></span> Recommendations</div>
     <ol class="recs-list">${recs}</ol>
   </div>` : ""}
@@ -1282,7 +1397,7 @@ function ReportView({ claim, onBack }) {
 
   <div class="footer">
     <span>ClaimLens AI — Confidential</span>
-    <span>Page 2 of 2</span>
+    <span>ClaimLens AI Report</span>
   </div>
 </div>
 
