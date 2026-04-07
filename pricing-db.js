@@ -197,6 +197,73 @@ export const AUTO_PARTS_PRICING = {
     luxury:   { repair: [600, 1500],  replace: [null, null],  labor_hours: [5, 10] },
     truck_suv:{ repair: [400, 900],   replace: [null, null],  labor_hours: [4, 8] },
   },
+  // --- Interior components ---
+  dashboard: {
+    economy:  { repair: [200, 600],   replace: [800, 2000],  labor_hours: [3, 8] },
+    midsize:  { repair: [300, 800],   replace: [1000, 3000], labor_hours: [4, 10] },
+    luxury:   { repair: [500, 1500],  replace: [2000, 6000], labor_hours: [6, 14] },
+    truck_suv:{ repair: [400, 1000],  replace: [1200, 3500], labor_hours: [4, 10] },
+  },
+  seat: {
+    economy:  { repair: [150, 500],   replace: [500, 1500],  labor_hours: [2, 5] },
+    midsize:  { repair: [200, 700],   replace: [800, 2500],  labor_hours: [2, 6] },
+    luxury:   { repair: [400, 1200],  replace: [1500, 5000], labor_hours: [3, 8] },
+    truck_suv:{ repair: [250, 800],   replace: [900, 3000],  labor_hours: [2, 6] },
+  },
+  headliner: {
+    economy:  { repair: [150, 400],   replace: [300, 800],   labor_hours: [2, 5] },
+    midsize:  { repair: [200, 500],   replace: [400, 1200],  labor_hours: [3, 6] },
+    luxury:   { repair: [300, 800],   replace: [800, 2500],  labor_hours: [4, 8] },
+    truck_suv:{ repair: [250, 600],   replace: [500, 1500],  labor_hours: [3, 7] },
+  },
+  steering_wheel: {
+    economy:  { repair: [null, null], replace: [150, 400],   labor_hours: [1, 2] },
+    midsize:  { repair: [null, null], replace: [200, 600],   labor_hours: [1, 2] },
+    luxury:   { repair: [null, null], replace: [500, 1500],  labor_hours: [1, 3] },
+    truck_suv:{ repair: [null, null], replace: [250, 700],   labor_hours: [1, 2] },
+  },
+  center_console: {
+    economy:  { repair: [100, 300],   replace: [200, 600],   labor_hours: [1, 3] },
+    midsize:  { repair: [150, 400],   replace: [300, 900],   labor_hours: [2, 4] },
+    luxury:   { repair: [300, 800],   replace: [600, 2000],  labor_hours: [2, 5] },
+    truck_suv:{ repair: [150, 500],   replace: [350, 1000],  labor_hours: [2, 4] },
+  },
+  door_panel_interior: {
+    economy:  { repair: [100, 300],   replace: [200, 500],   labor_hours: [1, 3] },
+    midsize:  { repair: [150, 400],   replace: [300, 800],   labor_hours: [2, 4] },
+    luxury:   { repair: [300, 700],   replace: [600, 1800],  labor_hours: [2, 5] },
+    truck_suv:{ repair: [150, 450],   replace: [350, 900],   labor_hours: [2, 4] },
+  },
+  carpet_flooring: {
+    economy:  { repair: [100, 300],   replace: [300, 800],   labor_hours: [2, 5] },
+    midsize:  { repair: [150, 400],   replace: [400, 1200],  labor_hours: [3, 6] },
+    luxury:   { repair: [250, 700],   replace: [800, 2500],  labor_hours: [4, 8] },
+    truck_suv:{ repair: [200, 500],   replace: [500, 1500],  labor_hours: [3, 6] },
+  },
+  engine_compartment: {
+    economy:  { repair: [1000, 3000], replace: [3000, 8000],  labor_hours: [10, 25] },
+    midsize:  { repair: [1500, 5000], replace: [5000, 12000], labor_hours: [12, 30] },
+    luxury:   { repair: [3000, 8000], replace: [8000, 25000], labor_hours: [15, 40] },
+    truck_suv:{ repair: [2000, 6000], replace: [5000, 15000], labor_hours: [12, 30] },
+  },
+  wiring_harness: {
+    economy:  { repair: [300, 800],   replace: [800, 2000],  labor_hours: [4, 10] },
+    midsize:  { repair: [400, 1200],  replace: [1000, 3000], labor_hours: [5, 12] },
+    luxury:   { repair: [600, 2000],  replace: [2000, 6000], labor_hours: [8, 20] },
+    truck_suv:{ repair: [500, 1500],  replace: [1200, 4000], labor_hours: [6, 15] },
+  },
+  wheel_tire: {
+    economy:  { repair: [50, 150],    replace: [100, 400],   labor_hours: [0.5, 1] },
+    midsize:  { repair: [75, 200],    replace: [150, 600],   labor_hours: [0.5, 1] },
+    luxury:   { repair: [100, 300],   replace: [300, 1200],  labor_hours: [0.5, 1.5] },
+    truck_suv:{ repair: [75, 250],    replace: [200, 800],   labor_hours: [0.5, 1] },
+  },
+  sunroof: {
+    economy:  { repair: [200, 500],   replace: [500, 1200],  labor_hours: [2, 5] },
+    midsize:  { repair: [300, 700],   replace: [700, 1800],  labor_hours: [3, 6] },
+    luxury:   { repair: [500, 1200],  replace: [1200, 3500], labor_hours: [3, 8] },
+    truck_suv:{ repair: [400, 900],   replace: [800, 2200],  labor_hours: [3, 7] },
+  },
 };
 
 const AUTO_COMPONENT_ALIASES = {
@@ -227,6 +294,30 @@ const AUTO_COMPONENT_ALIASES = {
   grille: "grille", "grill": "grille", "front grille": "grille", "radiator grille": "grille",
   paint: "paint_panel", "paint job": "paint_panel", "repaint": "paint_panel", "paint work": "paint_panel",
   "scratch": "paint_panel", "clear coat": "paint_panel",
+  // Interior
+  dashboard: "dashboard", "dash": "dashboard", "instrument panel": "dashboard", "dash panel": "dashboard",
+  "instrument cluster": "dashboard",
+  seat: "seat", "driver seat": "seat", "passenger seat": "seat", "front seat": "seat", "rear seat": "seat",
+  "back seat": "seat", "front driver seat": "seat", "front passenger seat": "seat",
+  headliner: "headliner", "headlining": "headliner", "ceiling": "headliner", "roof liner": "headliner",
+  "cabin ceiling": "headliner",
+  "steering wheel": "steering_wheel", "steering column": "steering_wheel",
+  "center console": "center_console", "centre console": "center_console", "console": "center_console",
+  "gear selector": "center_console",
+  "door panel interior": "door_panel_interior", "interior door panel": "door_panel_interior",
+  "door card": "door_panel_interior", "door trim": "door_panel_interior",
+  "front left door panel": "door_panel_interior", "front right door panel": "door_panel_interior",
+  "rear left door panel": "door_panel_interior", "rear right door panel": "door_panel_interior",
+  "left front door panel": "door_panel_interior", "right front door panel": "door_panel_interior",
+  carpet: "carpet_flooring", "floor carpet": "carpet_flooring", "floor mat": "carpet_flooring",
+  "interior carpet": "carpet_flooring", "cabin carpet": "carpet_flooring", "flooring": "carpet_flooring",
+  "engine compartment": "engine_compartment", "engine bay": "engine_compartment", "engine": "engine_compartment",
+  "motor": "engine_compartment", "engine block": "engine_compartment",
+  "wiring harness": "wiring_harness", "wiring": "wiring_harness", "electrical wiring": "wiring_harness",
+  "interior wiring": "wiring_harness", "wire harness": "wiring_harness",
+  "wheel": "wheel_tire", "tire": "wheel_tire", "wheel and tire": "wheel_tire", "rim": "wheel_tire",
+  sunroof: "sunroof", "sun roof": "sunroof", "moonroof": "sunroof", "moon roof": "sunroof",
+  "sunroof glass": "sunroof",
 };
 
 // --- Property repair pricing (national averages, USD per unit) ---
