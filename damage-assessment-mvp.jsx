@@ -198,13 +198,10 @@ function AuthScreen({ onLogin }) {
       }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, #1E3A8A, ${palette.accent})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
+          <img src="/icon.png" alt="ClaimPilot AI" style={{
+            width: 44, height: 44, borderRadius: 12,
             boxShadow: palette.glowStrong,
-          }}>
-            <Icons.Shield />
-          </div>
+          }} />
           <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", background: `linear-gradient(135deg, #E8EDF5, ${palette.accent})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ClaimPilot AI</span>
         </div>
         <p style={{ color: palette.textDim, fontSize: 13, marginBottom: 32, marginTop: 4, letterSpacing: "0.05em", textTransform: "uppercase", fontWeight: 500 }}>
@@ -314,16 +311,10 @@ function Dashboard({ user, onLogout }) {
         position: "sticky", top: 0, zIndex: 100,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
+          <img src="/icon.png" alt="" style={{
             width: 34, height: 34, borderRadius: 9,
-            background: `linear-gradient(135deg, #122184, ${palette.accent})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: palette.glow,
-          }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
+          }} />
           <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em" }}>ClaimPilot AI</span>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
