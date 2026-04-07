@@ -693,7 +693,10 @@ ACCURACY RULES:
 3. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add it to "flags" as "unconfirmed: [description]" — do NOT include it in the damages array.
 4. Be precise about location: specify left/right, front/rear, upper/lower based on what photos show.
 5. Use the PRICING REFERENCE DATA above as your baseline for cost estimates.
-6. Accuracy over completeness: false positives (claiming damage that isn't there) are worse than false negatives (missing real damage). When genuinely uncertain, leave it out.`;
+6. Accuracy over completeness: false positives (claiming damage that isn't there) are worse than false negatives (missing real damage). When genuinely uncertain, leave it out.
+7. NEVER infer damage based on vehicle model knowledge. You may know a vehicle has a sunroof, third-row seats, or other features — but if you cannot SEE the damage in the photos, do NOT include it. Only report what is VISUALLY CONFIRMED.
+8. Keep recommendations to 3-5 actionable items maximum. No duplicates or near-duplicates.
+9. Keep flags to 3-5 items maximum. Only include genuinely distinct concerns.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
@@ -826,14 +829,14 @@ ACCURACY RULES:
             const norm = normalize(item);
             const isDup = result.some(r => {
               const rn = normalize(r);
-              return rn === norm || similarity(rn, norm) >= 0.65;
+              return rn === norm || similarity(rn, norm) >= 0.5;
             });
             if (!isDup) result.push(item);
           }
           return result;
         };
-        const allRecs = fuzzyDedup(assessments.flatMap(a => a.recommendations || []));
-        const allFlags = fuzzyDedup(assessments.flatMap(a => a.flags || []));
+        const allRecs = fuzzyDedup(assessments.flatMap(a => a.recommendations || [])).slice(0, 5);
+        const allFlags = fuzzyDedup(assessments.flatMap(a => a.flags || [])).slice(0, 5);
 
         // Average confidence
         const avgConf = assessments.reduce((s, a) => s + (a.confidence || 0), 0) / assessments.length;
