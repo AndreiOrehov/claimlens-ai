@@ -68,7 +68,7 @@ const palette = {
   gradientBg: "radial-gradient(ellipse at 50% 0%, rgba(74,144,255,0.08) 0%, transparent 60%)",
 };
 
-const font = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+const font = "'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 // --- Icons (inline SVG) ---
 const Icons = {
@@ -354,12 +354,9 @@ function Dashboard({ user, onLogout }) {
         {/* HOME VIEW — New Claim only */}
         {view === "home" && (
           <div>
-            <h2 style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, marginBottom: 6, letterSpacing: "-0.02em" }}>
-              New Claim
+            <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 400, marginBottom: 20, letterSpacing: "-0.01em", color: palette.textMuted, whiteSpace: "nowrap" }}>
+              New Claim — select damage type
             </h2>
-            <p style={{ color: palette.textDim, fontSize: 14, marginBottom: 24 }}>
-              Select damage type to start a new assessment.
-            </p>
 
             <div style={{
               display: "flex", gap: 14, flexDirection: isMobile ? "column" : "row",
@@ -399,10 +396,10 @@ function Dashboard({ user, onLogout }) {
         {/* CABINET VIEW — History + Logout */}
         {view === "cabinet" && (
           <div>
-            <h2 style={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, marginBottom: 6, letterSpacing: "-0.02em" }}>
+            <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 400, marginBottom: 4, letterSpacing: "-0.01em", color: palette.textMuted }}>
               My Cabinet
             </h2>
-            <p style={{ color: palette.textDim, fontSize: 14, marginBottom: 24 }}>
+            <p style={{ color: palette.textDim, fontSize: 13, fontWeight: 300, marginBottom: 20 }}>
               {user.name || user.email} · {claims.length} claim{claims.length !== 1 ? "s" : ""}
             </p>
 
