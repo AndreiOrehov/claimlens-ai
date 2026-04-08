@@ -1102,15 +1102,26 @@ function NewClaimView({ onSubmit, initialType }) {
           }
         } catch { /* cache miss */ }
 
+        // --- Gemini helper with auto-fallback (2.5-flash → 2.0-flash) ---
+        const geminiTextCall = async (body) => {
+          const key = import.meta.env.VITE_GEMINI_API_KEY;
+          const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
+          for (const model of models) {
+            try {
+              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+              });
+              if (res.ok) return res;
+              console.warn(`Gemini ${model}: ${res.status}, trying next...`);
+            } catch (e) { console.warn(`Gemini ${model} failed:`, e.message); }
+          }
+          return null;
+        };
+
         // --- Run all pre-lookups in parallel ---
         // 1. OEM/Aftermarket prices (Gemini)
-        const pricePromise = fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: `For a ${vYear} ${vMake} ${vModel}, provide realistic OEM and aftermarket parts prices in USD. Return ONLY a JSON object, no markdown:
+        const pricePromise = geminiTextCall({
+          contents: [{ parts: [{ text: `For a ${vYear} ${vMake} ${vModel}, provide realistic OEM and aftermarket parts prices in USD. Return ONLY a JSON object, no markdown:
 {
   "front_bumper": { "oem": [low, high], "aftermarket": [low, high] },
   "rear_bumper": { "oem": [low, high], "aftermarket": [low, high] },
@@ -1131,10 +1142,8 @@ function NewClaimView({ onSubmit, initialType }) {
   "ac_condenser": { "oem": [low, high], "aftermarket": [low, high] }
 }
 Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-party compatible parts. If aftermarket not available, use null.` }] }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-            }),
-          }
-        ).catch(() => null);
+          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+        }).catch(() => null);
 
         // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
         const mcKey = import.meta.env.VITE_MARKETCHECK_API_KEY;
@@ -1149,13 +1158,8 @@ Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-part
         ), 8000).catch((e) => { console.warn("MarketCheck request failed:", e.message); return null; }) : Promise.resolve(null);
 
         // Gemini fallback: only if no cache AND no MarketCheck key
-        const acvGeminiPromise = (!acvData && !mcKey) ? fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}?
+        const acvGeminiPromise = (!acvData && !mcKey) ? geminiTextCall({
+          contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}?
 
 Return ONLY a JSON object, no markdown:
 {
@@ -1168,10 +1172,8 @@ Return ONLY a JSON object, no markdown:
 }
 
 Consider: year/make/model, typical depreciation, current used car market prices, condition, and mileage. ACV = what the vehicle was worth BEFORE the accident (fair market value for a comparable vehicle in similar condition). Be realistic — use actual market data.` }] }],
-              generationConfig: { temperature: 0, maxOutputTokens: 512 },
-            }),
-          }
-        ).catch(() => null) : Promise.resolve(null);
+          generationConfig: { temperature: 0, maxOutputTokens: 512 },
+        }).catch(() => null) : Promise.resolve(null);
 
         const [priceLookupRes, marketCheckRes, acvGeminiRes] = await Promise.all([pricePromise, marketCheckPromise, acvGeminiPromise]);
 
@@ -1250,17 +1252,10 @@ Consider: year/make/model, typical depreciation, current used car market prices,
           if (!mcSuccess) {
             try {
               // If we had MarketCheck key but it returned no/few results, try Gemini now
-              const geminiRes = acvGeminiRes || (mcKey ? await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}? Return ONLY JSON: {"acv_low":number,"acv_high":number,"acv_mid":number,"condition_assumed":"good|fair|excellent","mileage_adjustment":"...","source_basis":"..."}` }] }],
-                    generationConfig: { temperature: 0, maxOutputTokens: 512 },
-                  }),
-                }
-              ).catch(() => null) : null);
+              const geminiRes = acvGeminiRes || (mcKey ? await geminiTextCall({
+                contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}? Return ONLY JSON: {"acv_low":number,"acv_high":number,"acv_mid":number,"condition_assumed":"good|fair|excellent","mileage_adjustment":"...","source_basis":"..."}` }] }],
+                generationConfig: { temperature: 0, maxOutputTokens: 512 },
+              }).catch(() => null) : null);
               if (geminiRes?.ok) {
                 const gData = await geminiRes.json();
                 const gText = gData.candidates?.[0]?.content?.parts?.[0]?.text || "";
