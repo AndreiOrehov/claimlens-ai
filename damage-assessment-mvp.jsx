@@ -1461,8 +1461,7 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
     "source": "Brief basis (e.g. 'Based on KBB/Edmunds/NADA typical ranges')"
   },
   "total_loss_analysis": {
-    "repair_to_acv_pct_low": number_or_null,
-    "repair_to_acv_pct_high": number_or_null,
+    "repair_to_acv_pct": number_or_null,
     "threshold_pct": 75,
     "recommendation": "repair|total_loss|borderline",
     "reasoning": "1-2 sentence explanation (e.g. 'Repair cost $X = Y% of ACV $Z, which exceeds the 75% threshold')"
@@ -1487,7 +1486,7 @@ ACCURACY RULES:
 8. "cost_breakdown" is REQUIRED for EACH damage item. For auto: provide parts_oem (OEM price), parts_aftermarket (aftermarket/used price), labor_hours_low/high, labor_rate ($/hr for region), paint_materials (ONLY for exterior body panels that require painting — bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof. Set to null for everything else: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts (dashboard, seats, steering wheel, headliner, console, airbags), wiring, mechanical parts — these are all replaced, never painted). For property: provide materials_standard (builder grade), materials_premium (higher grade), labor_hours_low/high, labor_rate. Always include "notes" explaining what drives the range.
 9. CRITICAL MATH RULE: estimated_cost_low and estimated_cost_high MUST be calculated FROM cost_breakdown, NOT independently. For auto: low = parts_aftermarket + (labor_hours_low × labor_rate) + paint_materials (if applicable, else 0); high = parts_oem + (labor_hours_high × labor_rate) + paint_materials (if applicable, else 0). For property: low = materials_standard + (labor_hours_low × labor_rate); high = materials_premium + (labor_hours_high × labor_rate). Double-check arithmetic before returning.
 10. "vehicle_acv": If ACV data was provided above, use it. If not, estimate based on year/make/model/mileage. Set all to null ONLY if you truly cannot estimate (e.g. unknown vehicle). ACV = pre-accident fair market value.
-11. "total_loss_analysis": Calculate repair_to_acv_pct_low = (total_estimate_low / vehicle_acv.mid) × 100, repair_to_acv_pct_high = (total_estimate_high / vehicle_acv.mid) × 100. If high % > 75%, recommend "total_loss". If low % < 75% but high % > 60%, recommend "borderline". Otherwise "repair". Explain your reasoning.
+11. "total_loss_analysis": Calculate repair_to_acv_pct using a SINGLE repair estimate (weighted: 60% low + 40% high, reflecting typical insurer-approved aftermarket parts). repair_to_acv_pct = (repair_estimate / vehicle_acv.mid) × 100. If pct > 75%, recommend "total_loss". If pct > 60%, recommend "borderline". Otherwise "repair". Provide one clear percentage, not a range.
 12. "adjuster_checklist": Generate 5-10 SPECIFIC inspection actions that an adjuster should perform based on the damage found. These must be tied to actual damage detected — NOT generic. Examples: "Check frame rail alignment — front bumper impact detected", "Inspect airbag deployment sensors — dashboard damage present", "Verify AC system charge — condenser area impacted", "Pull paint thickness readings on left quarter panel — possible prior repair". Each item should reference the specific damage that triggered it.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
@@ -1669,18 +1668,21 @@ ACCURACY RULES:
           };
         }
 
-        // Merge total_loss_analysis — recalculate from merged totals + merged ACV
+        // Merge total_loss_analysis — use SINGLE midpoint estimate vs ACV (like real adjusters)
+        // Adjusters use one repair number (typically aftermarket parts + standard labor) vs one ACV
         let mergedTotalLoss = null;
         if (mergedAcv?.mid) {
-          const pctLow = Math.round((totalLow / mergedAcv.mid) * 100);
-          const pctHigh = Math.round((totalHigh / mergedAcv.mid) * 100);
-          const rec = pctHigh > 75 ? "total_loss" : pctLow > 60 ? "borderline" : "repair";
+          // Repair estimate: use weighted midpoint (closer to low/aftermarket — that's what insurers typically approve)
+          const repairEstimate = Math.round(totalLow * 0.6 + totalHigh * 0.4); // weighted toward aftermarket
+          const acvValue = mergedAcv.mid;
+          const pct = Math.round((repairEstimate / acvValue) * 100);
+          const rec = pct > 75 ? "total_loss" : pct > 60 ? "borderline" : "repair";
           const reasoning = rec === "total_loss"
-            ? `Repair cost $${totalLow.toLocaleString()}–$${totalHigh.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${mergedAcv.mid.toLocaleString()}, exceeding the 75% total loss threshold`
+            ? `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvValue.toLocaleString()}, exceeds 75% total loss threshold`
             : rec === "borderline"
-            ? `Repair cost $${totalLow.toLocaleString()}–$${totalHigh.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${mergedAcv.mid.toLocaleString()}, approaching total loss threshold`
-            : `Repair cost $${totalLow.toLocaleString()}–$${totalHigh.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${mergedAcv.mid.toLocaleString()}, within economic repair range`;
-          mergedTotalLoss = { repair_to_acv_pct_low: pctLow, repair_to_acv_pct_high: pctHigh, threshold_pct: 75, recommendation: rec, reasoning };
+            ? `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvValue.toLocaleString()}, approaching total loss threshold — physical inspection required`
+            : `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvValue.toLocaleString()}, within economic repair range`;
+          mergedTotalLoss = { repair_estimate: repairEstimate, acv_value: acvValue, repair_to_acv_pct: pct, threshold_pct: 75, recommendation: rec, reasoning };
         }
 
         // Merge adjuster_checklist — deduplicate across runs
@@ -1730,23 +1732,24 @@ ACCURACY RULES:
           mid: acvData.acv_mid,
           source: acvData.source_basis || "Gemini pre-lookup",
         };
-        // Recalculate total loss analysis with pre-lookup ACV
+        // Recalculate total loss analysis with pre-lookup ACV — single number like real adjusters
         const tl = assessment.total_estimate_low || 0;
         const th = assessment.total_estimate_high || 0;
+        const repairEstimate = Math.round(tl * 0.6 + th * 0.4); // weighted toward aftermarket (insurer-typical)
         const acvMid = acvData.acv_mid;
-        const pctLow = Math.round((tl / acvMid) * 100);
-        const pctHigh = Math.round((th / acvMid) * 100);
-        const rec = pctHigh > 75 ? "total_loss" : pctLow > 60 ? "borderline" : "repair";
+        const pct = Math.round((repairEstimate / acvMid) * 100);
+        const rec = pct > 75 ? "total_loss" : pct > 60 ? "borderline" : "repair";
         assessment.total_loss_analysis = {
-          repair_to_acv_pct_low: pctLow,
-          repair_to_acv_pct_high: pctHigh,
+          repair_estimate: repairEstimate,
+          acv_value: acvMid,
+          repair_to_acv_pct: pct,
           threshold_pct: 75,
           recommendation: rec,
           reasoning: rec === "total_loss"
-            ? `Repair cost $${tl.toLocaleString()}–$${th.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${acvMid.toLocaleString()}, exceeding the 75% total loss threshold`
+            ? `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvMid.toLocaleString()}, exceeds 75% total loss threshold`
             : rec === "borderline"
-            ? `Repair cost $${tl.toLocaleString()}–$${th.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${acvMid.toLocaleString()}, approaching total loss threshold`
-            : `Repair cost $${tl.toLocaleString()}–$${th.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${acvMid.toLocaleString()}, within economic repair range`,
+            ? `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvMid.toLocaleString()}, approaching total loss threshold — physical inspection required`
+            : `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvMid.toLocaleString()}, within economic repair range`,
         };
       }
 
@@ -2191,7 +2194,7 @@ function ReportView({ claim, onBack, isPro = false }) {
       const tla = a.total_loss_analysis;
       report += `TOTAL LOSS ANALYSIS\n${"-".repeat(30)}\n`;
       report += `Vehicle ACV: $${a.vehicle_acv.low?.toLocaleString()} — $${a.vehicle_acv.high?.toLocaleString()} (mid: $${a.vehicle_acv.mid?.toLocaleString()})\n`;
-      report += `Repair/ACV Ratio: ${tla.repair_to_acv_pct_low}% — ${tla.repair_to_acv_pct_high}% (threshold: ${tla.threshold_pct}%)\n`;
+      report += `Repair Estimate: $${(tla.repair_estimate || 0).toLocaleString()} | ACV: $${(tla.acv_value || 0).toLocaleString()} | Ratio: ${tla.repair_to_acv_pct}% (threshold: ${tla.threshold_pct}%)\n`;
       report += `Determination: ${tla.recommendation?.toUpperCase().replace("_", " ")}\n`;
       report += `${tla.reasoning}\n\n`;
     }
@@ -2447,17 +2450,17 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
         ${a.total_loss_analysis.recommendation === "total_loss" ? "⚠ TOTAL LOSS DETERMINATION" : a.total_loss_analysis.recommendation === "borderline" ? "⚠ BORDERLINE — REQUIRES INSPECTION" : "✓ ECONOMIC REPAIR"}
       </span>
       <span style="font-size:12px;font-weight:700;color:${a.total_loss_analysis.recommendation === "total_loss" ? "#DC2626" : a.total_loss_analysis.recommendation === "borderline" ? "#D97706" : "#059669"};">
-        ${a.total_loss_analysis.repair_to_acv_pct_low}–${a.total_loss_analysis.repair_to_acv_pct_high}% of ACV
+        ${a.total_loss_analysis.repair_to_acv_pct}% of ACV
       </span>
     </div>
     <div style="display:flex;gap:12px;margin-bottom:10px;">
       <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
-        <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Repair Cost</div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.total_estimate_low||0).toLocaleString()} – $${(a.total_estimate_high||0).toLocaleString()}</div>
+        <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Repair Estimate</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.total_loss_analysis.repair_estimate||0).toLocaleString()}</div>
       </div>
       <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
         <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Vehicle ACV</div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.vehicle_acv.low||0).toLocaleString()} – $${(a.vehicle_acv.high||0).toLocaleString()}</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.total_loss_analysis.acv_value||0).toLocaleString()}</div>
       </div>
       <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
         <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Threshold</div>
@@ -2728,20 +2731,20 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                 color: a.total_loss_analysis.recommendation === "total_loss" ? palette.danger
                   : a.total_loss_analysis.recommendation === "borderline" ? palette.warning : palette.success,
               }}>
-                {a.total_loss_analysis.repair_to_acv_pct_low}–{a.total_loss_analysis.repair_to_acv_pct_high}% of ACV
+                {a.total_loss_analysis.repair_to_acv_pct}% of ACV
               </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
               <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
-                <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Repair Cost</div>
+                <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Repair Estimate</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
-                  ${a.total_estimate_low?.toLocaleString()}–${a.total_estimate_high?.toLocaleString()}
+                  ${a.total_loss_analysis.repair_estimate?.toLocaleString()}
                 </div>
               </div>
               <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
                 <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Vehicle ACV</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
-                  ${a.vehicle_acv.low?.toLocaleString()}–${a.vehicle_acv.high?.toLocaleString()}
+                  ${a.total_loss_analysis.acv_value?.toLocaleString()}
                 </div>
               </div>
               <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
