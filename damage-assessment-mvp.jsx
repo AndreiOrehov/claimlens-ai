@@ -1612,6 +1612,7 @@ GENERAL ACCURACY RULES:
       clearInterval(progressInterval);
       const validResults = results.filter(Boolean);
       console.log(`Valid results: ${validResults.length}/${NUM_RUNS}`);
+      validResults.forEach((r, i) => console.log(`Run ${i + 1}: ${r.damages?.length || 0} damages, severity=${r.severity}, components:`, (r.damages || []).map(d => d.component).join(", ")));
 
       if (validResults.length === 0) throw new Error("All Gemini requests failed");
 
@@ -1656,6 +1657,7 @@ GENERAL ACCURACY RULES:
 
         // Keep components found in 2+ runs (consensus), or all if only 1 run
         const minVotes = assessments.length >= 3 ? 2 : 1;
+        console.log("Merge damageMap:", Object.entries(damageMap).map(([k, v]) => `${k}(${new Set(v.entries.map(e=>e.runIdx)).size} runs)`).join(", "));
         const mergedDamages = [];
         const isAutoType = assessments[0]?.damage_type === "auto" || assessments[0]?.damage_type === undefined;
         for (const [key, info] of Object.entries(damageMap)) {
