@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER } from "./pricing-db.js";
+import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER, getPartPrice } from "./pricing-db.js";
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
 import { PARTS_CATALOG_PROMPT } from "./parts-catalog.js";
@@ -1868,41 +1868,56 @@ GENERAL ACCURACY RULES:
           }
         }
 
-        // --- Post-processing: override Gemini's labor hours with our database ---
+        // --- Post-processing: override Gemini's hours, rates, and prices with our database ---
+        // This is the KEY to stable estimates: Gemini detects WHAT is damaged,
+        // but all dollar values come from our deterministic database.
         if (type === "auto") {
-          const classMulti = getClassMultiplier(getVehicleClass(vMake, vModel));
+          const vehClass = getVehicleClass(vMake, vModel);
+          const classMulti = getClassMultiplier(vehClass);
           const classFactor = (classMulti[0] + classMulti[1]) / 2;
+          const stateData = US_STATES.find(s => s.value === claimState) || { autoLaborRate: 143 };
+          const stateBodyRate = stateData.autoLaborRate;
+          const statePaintRate = stateBodyRate; // Paint rate = body rate in most states
           let overrideCount = 0;
           for (const d of mergedDamages) {
             if (!d.operation) continue;
             const compName = d.component || "";
             const op = (d.operation || "").toUpperCase();
 
-            // Override labor hours from database
+            // 1. Override labor RATES with state database rates (deterministic)
+            if (d.labor) {
+              const typeMultiplier = LABOR_RATE_CATEGORIES[d.labor.type]?.multiplier || 1.0;
+              d.labor.rate = Math.round(stateBodyRate * typeMultiplier);
+            }
+            if (d.paint) {
+              d.paint.rate = statePaintRate;
+            }
+
+            // 2. Override labor HOURS from database
             if (d.labor && (op === "R&R" || op === "R&I")) {
-              // R&R / R&I: use component-specific database hours
               const dbEntry = getLaborHours(compName);
               if (dbEntry) {
                 const dbMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * classFactor * 10) / 10;
                 d.labor.hours = dbMid;
                 d.labor.type = dbEntry.type || d.labor.type;
+                // Re-apply rate for possibly changed type
+                const typeMultiplier = LABOR_RATE_CATEGORIES[d.labor.type]?.multiplier || 1.0;
+                d.labor.rate = Math.round(stateBodyRate * typeMultiplier);
                 overrideCount++;
               }
             } else if (d.labor && op === "REPAIR") {
-              // REPAIR: use severity-based repair hours (NOT R&R hours)
               const sev = (d.severity || "moderate").toLowerCase();
               const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
                 : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
                 : LABOR_TIMES.repair.moderate.hours;
               const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
-              // Don't let repair hours exceed Gemini's original if Gemini was lower (trust AI for light damage)
               if (d.labor.hours > repMid * 1.5) {
                 d.labor.hours = repMid;
                 overrideCount++;
               }
             }
 
-            // Override Refinish / Blend paint hours from database
+            // 3. Override Refinish / Blend paint hours from database
             if (d.paint && (op === "REFINISH" || op === "BLEND")) {
               const dbPaint = getRefinishHours(compName);
               if (dbPaint) {
@@ -1914,7 +1929,16 @@ GENERAL ACCURACY RULES:
               }
             }
 
-            // Recalculate estimated_cost from overridden breakdown
+            // 4. Override part PRICES from database (deterministic)
+            if (d.part_info && (op === "R&R" || op === "R&I" || op === "REPLACE")) {
+              const dbPrice = getPartPrice(compName, op, vehClass);
+              if (dbPrice) {
+                d.part_info.price = dbPrice.price;
+                d.part_info.oem_price = dbPrice.oem_price;
+              }
+            }
+
+            // 5. Recalculate estimated_cost from overridden breakdown
             const laborCost = d.labor ? Math.round(d.labor.hours * d.labor.rate) : 0;
             const paintCost = d.paint ? Math.round(d.paint.hours * d.paint.rate) + (d.paint.materials || 0) : 0;
             const partCost = d.part_info?.price || 0;
@@ -1922,7 +1946,7 @@ GENERAL ACCURACY RULES:
             const recalc = laborCost + paintCost + partCost + subletCost;
             if (recalc > 0) d.estimated_cost = recalc;
           }
-          if (overrideCount > 0) console.log(`Labor hours overridden: ${overrideCount} components (class factor: ${classFactor.toFixed(2)})`);
+          if (overrideCount > 0) console.log(`Overrides applied: ${overrideCount} labor hours, rates=$${stateBodyRate}/hr (class factor: ${classFactor.toFixed(2)})`);
         }
 
         // Calculate totals — Mitchell auto uses single estimated_cost, property uses low/high

@@ -595,6 +595,53 @@ export function getStateData(stateCode) {
   return st;
 }
 
+// --- Lookup part price from our database by component name + operation ---
+// Returns { price, oem_price } or null if not found
+export function getPartPrice(componentName, operation, vehicleClass) {
+  const cls = vehicleClass || "midsize";
+  const normalized = componentName.toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\s*(lh|rh|lf|rf|lr|rr|left|right)\s*/gi, " ")
+    .trim();
+  // Look up via alias table
+  const aliasKey = AUTO_COMPONENT_ALIASES[normalized];
+  const pricing = aliasKey ? AUTO_PARTS_PRICING[aliasKey]?.[cls] : null;
+  if (!pricing) {
+    // Try direct key match
+    const directKey = normalized.replace(/\s+/g, "_");
+    const directPricing = AUTO_PARTS_PRICING[directKey]?.[cls];
+    if (!directPricing) return null;
+    return _extractPartPrice(directPricing, operation);
+  }
+  return _extractPartPrice(pricing, operation);
+}
+
+function _extractPartPrice(pricing, operation) {
+  const op = (operation || "").toUpperCase();
+  if (op === "R&R" || op === "R&I" || op === "REPLACE") {
+    if (pricing.replace?.[0] != null) {
+      const mid = Math.round((pricing.replace[0] + pricing.replace[1]) / 2);
+      return { price: mid, oem_price: pricing.replace[1] };
+    }
+  }
+  if (op === "REPAIR" || op === "BLEND" || op === "REFINISH") {
+    if (pricing.repair?.[0] != null) {
+      const mid = Math.round((pricing.repair[0] + pricing.repair[1]) / 2);
+      return { price: mid, oem_price: mid };
+    }
+  }
+  // Fallback: try replace first, then repair
+  if (pricing.replace?.[0] != null) {
+    const mid = Math.round((pricing.replace[0] + pricing.replace[1]) / 2);
+    return { price: mid, oem_price: pricing.replace[1] };
+  }
+  if (pricing.repair?.[0] != null) {
+    const mid = Math.round((pricing.repair[0] + pricing.repair[1]) / 2);
+    return { price: mid, oem_price: mid };
+  }
+  return null;
+}
+
 // --- Build pricing context for Claude prompt ---
 export function buildPricingContext(type, options) {
   const { stateCode } = options;
