@@ -1105,7 +1105,7 @@ function NewClaimView({ onSubmit, initialType }) {
         // --- Gemini helper with auto-fallback (2.5-flash → 2.0-flash) ---
         const geminiTextCall = async (body) => {
           const key = import.meta.env.VITE_GEMINI_API_KEY;
-          const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
+          const models = ["gemini-2.5-flash", "gemini-flash-latest"];
           for (const model of models) {
             try {
               const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
