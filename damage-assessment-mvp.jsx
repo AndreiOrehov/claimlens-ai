@@ -1642,6 +1642,19 @@ MITCHELL-STYLE ESTIMATE RULES (for auto claims):
 9. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence.
 10. "potential_damages": parts NOT visible but likely damaged. Use single estimated_cost.
 
+SYSTEMATIC ZONE-BY-ZONE SCAN — You MUST inspect EVERY zone in order. For each zone, report any damage found or skip if no damage is visible. Do NOT stop after finding the obvious damage — check ALL zones:
+1. FRONT-CENTER: bumper cover, grille, hood, windshield, emblem
+2. FRONT-LEFT: left headlamp, left fog lamp, left fender, left mirror, left front wheel/tire
+3. FRONT-RIGHT: right headlamp, right fog lamp, right fender, right mirror, right front wheel/tire
+4. LEFT SIDE: left doors, left rocker panel, left body side molding
+5. RIGHT SIDE: right doors, right rocker panel, right body side molding
+6. REAR-LEFT: left tail lamp, left rear quarter panel, left rear wheel/tire
+7. REAR-RIGHT: right tail lamp, right rear quarter panel, right rear wheel/tire
+8. REAR-CENTER: rear bumper cover, trunk/tailgate, rear spoiler, license plate area
+9. ROOF & UPPER: roof panel, sunroof, antenna, roof rack
+10. STRUCTURAL (if visible): radiator support, frame rails, core support, bumper reinforcement
+11. SUBLET ITEMS: always include pre/post repair scans + alignment if front-end damage exists
+
 GENERAL ACCURACY RULES:
 1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags".
 2. Be precise about location: left/right, front/rear.
