@@ -64,9 +64,11 @@ export const US_STATES = [
 
 // --- Vehicle classification ---
 const VEHICLE_CLASS_MAP = {
-  economy: ["Kia", "Hyundai", "Nissan", "Mitsubishi"],
+  economy: ["Kia", "Hyundai", "Nissan", "Mitsubishi", "MINI", "Fiat", "smart"],
   midsize: ["Honda", "Toyota", "Mazda", "Subaru", "Volkswagen", "Chevrolet", "Ford", "Dodge", "Chrysler", "Buick", "GMC", "Ram", "Jeep"],
-  luxury: ["BMW", "Mercedes-Benz", "Audi", "Lexus", "Acura", "Infiniti", "Cadillac", "Lincoln", "Genesis", "Volvo", "Porsche", "Tesla"],
+  premium: ["Acura", "Infiniti", "Cadillac", "Lincoln", "Genesis", "Volvo", "Tesla", "Alfa Romeo", "Jaguar", "Polestar", "Rivian", "Lucid"],
+  luxury: ["BMW", "Mercedes-Benz", "Audi", "Lexus"],
+  ultra_luxury: ["Porsche", "Land Rover", "Maserati", "Bentley", "Aston Martin", "Rolls-Royce", "Lamborghini", "Ferrari", "McLaren"],
 };
 
 const VEHICLE_CLASS_OVERRIDES = {
@@ -82,6 +84,22 @@ const VEHICLE_CLASS_OVERRIDES = {
   Hyundai:   { Tucson: "truck_suv", "Santa Fe": "truck_suv", Palisade: "truck_suv" },
   Kia:       { Telluride: "truck_suv", Sportage: "truck_suv", Sorento: "truck_suv" },
   Subaru:    { Outback: "truck_suv", Forester: "truck_suv", Ascent: "truck_suv" },
+  BMW:       { X3: "truck_suv", X5: "truck_suv", X7: "truck_suv" },
+  "Mercedes-Benz": { GLA: "truck_suv", GLB: "truck_suv", GLC: "truck_suv", GLE: "truck_suv", GLS: "truck_suv", "G-Class": "truck_suv" },
+  Audi:      { Q3: "truck_suv", Q5: "truck_suv", Q7: "truck_suv", Q8: "truck_suv", "e-tron": "truck_suv" },
+  Lexus:     { GX: "truck_suv", LX470: "truck_suv", LX570: "truck_suv", LX600: "truck_suv", NX: "truck_suv", RX: "truck_suv", TX: "truck_suv" },
+  Acura:     { MDX: "truck_suv", RDX: "truck_suv" },
+  Infiniti:  { QX50: "truck_suv", QX55: "truck_suv", QX60: "truck_suv", QX80: "truck_suv" },
+  Cadillac:  { Escalade: "truck_suv", XT4: "truck_suv", XT5: "truck_suv", XT6: "truck_suv", LYRIQ: "truck_suv" },
+  Lincoln:   { Aviator: "truck_suv", Corsair: "truck_suv", Nautilus: "truck_suv", Navigator: "truck_suv" },
+  Genesis:   { GV70: "truck_suv", GV80: "truck_suv" },
+  Volvo:     { XC40: "truck_suv", XC60: "truck_suv", XC90: "truck_suv", EX30: "truck_suv", EX90: "truck_suv" },
+  Porsche:   { Cayenne: "truck_suv", Macan: "truck_suv" },
+  "Land Rover": { Defender: "truck_suv", Discovery: "truck_suv", "Discovery Sport": "truck_suv", "Range Rover": "truck_suv", "Range Rover Sport": "truck_suv", "Range Rover Velar": "truck_suv", "Range Rover Evoque": "truck_suv" },
+  Tesla:     { "Model X": "truck_suv", "Model Y": "truck_suv", Cybertruck: "truck_suv" },
+  Rivian:    { R1S: "truck_suv", R1T: "truck_suv" },
+  Mazda:     { "CX-5": "truck_suv", "CX-30": "truck_suv", "CX-50": "truck_suv", "CX-70": "truck_suv", "CX-90": "truck_suv", "CX-9": "truck_suv" },
+  Volkswagen:{ Atlas: "truck_suv", "Atlas Cross Sport": "truck_suv", Tiguan: "truck_suv", "ID.4": "truck_suv", "ID.Buzz": "truck_suv" },
 };
 
 export function getVehicleClass(make, model) {
@@ -96,173 +114,229 @@ export function getVehicleClass(make, model) {
 // repair/replace = [low, high] parts+labor; labor_hours = [low, high]
 export const AUTO_PARTS_PRICING = {
   bumper_front: {
-    economy:  { repair: [300, 600],   replace: [500, 1000],  labor_hours: [2, 5] },
-    midsize:  { repair: [400, 800],   replace: [600, 1400],  labor_hours: [3, 6] },
-    luxury:   { repair: [600, 1200],  replace: [1200, 3000], labor_hours: [3, 8] },
-    truck_suv:{ repair: [400, 900],   replace: [700, 1800],  labor_hours: [3, 6] },
+    economy:     { repair: [300, 600],   replace: [500, 1000],   labor_hours: [2, 5] },
+    midsize:     { repair: [400, 800],   replace: [600, 1400],   labor_hours: [3, 6] },
+    premium:     { repair: [500, 1000],  replace: [900, 2200],   labor_hours: [3, 7] },
+    luxury:      { repair: [600, 1200],  replace: [1200, 3000],  labor_hours: [3, 8] },
+    ultra_luxury:{ repair: [1000, 2000], replace: [2500, 6000],  labor_hours: [4, 10] },
+    truck_suv:   { repair: [400, 900],   replace: [700, 1800],   labor_hours: [3, 6] },
   },
   bumper_rear: {
-    economy:  { repair: [300, 600],   replace: [500, 1100],  labor_hours: [2, 5] },
-    midsize:  { repair: [400, 800],   replace: [600, 1500],  labor_hours: [3, 6] },
-    luxury:   { repair: [600, 1200],  replace: [1200, 3200], labor_hours: [3, 8] },
-    truck_suv:{ repair: [400, 900],   replace: [700, 1900],  labor_hours: [3, 6] },
+    economy:     { repair: [300, 600],   replace: [500, 1100],   labor_hours: [2, 5] },
+    midsize:     { repair: [400, 800],   replace: [600, 1500],   labor_hours: [3, 6] },
+    premium:     { repair: [500, 1000],  replace: [900, 2300],   labor_hours: [3, 7] },
+    luxury:      { repair: [600, 1200],  replace: [1200, 3200],  labor_hours: [3, 8] },
+    ultra_luxury:{ repair: [1000, 2000], replace: [2500, 6500],  labor_hours: [4, 10] },
+    truck_suv:   { repair: [400, 900],   replace: [700, 1900],   labor_hours: [3, 6] },
   },
   fender: {
-    economy:  { repair: [200, 500],   replace: [400, 900],   labor_hours: [2, 4] },
-    midsize:  { repair: [300, 700],   replace: [500, 1200],  labor_hours: [3, 5] },
-    luxury:   { repair: [500, 1000],  replace: [1000, 2500], labor_hours: [3, 7] },
-    truck_suv:{ repair: [350, 750],   replace: [600, 1500],  labor_hours: [3, 5] },
+    economy:     { repair: [200, 500],   replace: [400, 900],    labor_hours: [2, 4] },
+    midsize:     { repair: [300, 700],   replace: [500, 1200],   labor_hours: [3, 5] },
+    premium:     { repair: [400, 850],   replace: [750, 1800],   labor_hours: [3, 6] },
+    luxury:      { repair: [500, 1000],  replace: [1000, 2500],  labor_hours: [3, 7] },
+    ultra_luxury:{ repair: [800, 1800],  replace: [2000, 5000],  labor_hours: [4, 9] },
+    truck_suv:   { repair: [350, 750],   replace: [600, 1500],   labor_hours: [3, 5] },
   },
   hood: {
-    economy:  { repair: [200, 500],   replace: [400, 1000],  labor_hours: [2, 4] },
-    midsize:  { repair: [300, 700],   replace: [500, 1400],  labor_hours: [2, 5] },
-    luxury:   { repair: [500, 1200],  replace: [1200, 3500], labor_hours: [3, 6] },
-    truck_suv:{ repair: [350, 800],   replace: [600, 1800],  labor_hours: [2, 5] },
+    economy:     { repair: [200, 500],   replace: [400, 1000],   labor_hours: [2, 4] },
+    midsize:     { repair: [300, 700],   replace: [500, 1400],   labor_hours: [2, 5] },
+    premium:     { repair: [400, 950],   replace: [800, 2400],   labor_hours: [3, 6] },
+    luxury:      { repair: [500, 1200],  replace: [1200, 3500],  labor_hours: [3, 6] },
+    ultra_luxury:{ repair: [900, 2200],  replace: [3000, 8000],  labor_hours: [4, 8] },
+    truck_suv:   { repair: [350, 800],   replace: [600, 1800],   labor_hours: [2, 5] },
   },
   door: {
-    economy:  { repair: [250, 600],   replace: [500, 1200],  labor_hours: [3, 6] },
-    midsize:  { repair: [350, 800],   replace: [800, 2000],  labor_hours: [4, 7] },
-    luxury:   { repair: [600, 1500],  replace: [1500, 4000], labor_hours: [4, 10] },
-    truck_suv:{ repair: [400, 900],   replace: [900, 2500],  labor_hours: [4, 8] },
+    economy:     { repair: [250, 600],   replace: [500, 1200],   labor_hours: [3, 6] },
+    midsize:     { repair: [350, 800],   replace: [800, 2000],   labor_hours: [4, 7] },
+    premium:     { repair: [500, 1200],  replace: [1100, 3000],  labor_hours: [4, 9] },
+    luxury:      { repair: [600, 1500],  replace: [1500, 4000],  labor_hours: [4, 10] },
+    ultra_luxury:{ repair: [1000, 2500], replace: [3000, 8000],  labor_hours: [5, 12] },
+    truck_suv:   { repair: [400, 900],   replace: [900, 2500],   labor_hours: [4, 8] },
   },
   windshield: {
-    economy:  { repair: [50, 150],    replace: [200, 450],   labor_hours: [1, 2] },
-    midsize:  { repair: [50, 150],    replace: [250, 600],   labor_hours: [1, 2] },
-    luxury:   { repair: [75, 200],    replace: [500, 1500],  labor_hours: [1, 3] },
-    truck_suv:{ repair: [50, 150],    replace: [300, 700],   labor_hours: [1, 2] },
+    economy:     { repair: [50, 150],    replace: [200, 450],    labor_hours: [1, 2] },
+    midsize:     { repair: [50, 150],    replace: [250, 600],    labor_hours: [1, 2] },
+    premium:     { repair: [60, 175],    replace: [350, 1000],   labor_hours: [1, 2.5] },
+    luxury:      { repair: [75, 200],    replace: [500, 1500],   labor_hours: [1, 3] },
+    ultra_luxury:{ repair: [100, 300],   replace: [1000, 3000],  labor_hours: [1.5, 4] },
+    truck_suv:   { repair: [50, 150],    replace: [300, 700],    labor_hours: [1, 2] },
   },
   headlight: {
-    economy:  { repair: [null, null], replace: [150, 500],   labor_hours: [0.5, 2] },
-    midsize:  { repair: [null, null], replace: [200, 800],   labor_hours: [0.5, 2] },
-    luxury:   { repair: [null, null], replace: [600, 2500],  labor_hours: [1, 3] },
-    truck_suv:{ repair: [null, null], replace: [250, 900],   labor_hours: [0.5, 2] },
+    economy:     { repair: [null, null], replace: [150, 500],    labor_hours: [0.5, 2] },
+    midsize:     { repair: [null, null], replace: [200, 800],    labor_hours: [0.5, 2] },
+    premium:     { repair: [null, null], replace: [400, 1500],   labor_hours: [1, 2.5] },
+    luxury:      { repair: [null, null], replace: [600, 2500],   labor_hours: [1, 3] },
+    ultra_luxury:{ repair: [null, null], replace: [1500, 5000],  labor_hours: [1.5, 4] },
+    truck_suv:   { repair: [null, null], replace: [250, 900],    labor_hours: [0.5, 2] },
   },
   taillight: {
-    economy:  { repair: [null, null], replace: [60, 300],    labor_hours: [0.5, 1.5] },
-    midsize:  { repair: [null, null], replace: [100, 500],   labor_hours: [0.5, 2] },
-    luxury:   { repair: [null, null], replace: [300, 1200],  labor_hours: [0.5, 2] },
-    truck_suv:{ repair: [null, null], replace: [100, 600],   labor_hours: [0.5, 2] },
+    economy:     { repair: [null, null], replace: [60, 300],     labor_hours: [0.5, 1.5] },
+    midsize:     { repair: [null, null], replace: [100, 500],    labor_hours: [0.5, 2] },
+    premium:     { repair: [null, null], replace: [200, 800],    labor_hours: [0.5, 2] },
+    luxury:      { repair: [null, null], replace: [300, 1200],   labor_hours: [0.5, 2] },
+    ultra_luxury:{ repair: [null, null], replace: [600, 2500],   labor_hours: [1, 3] },
+    truck_suv:   { repair: [null, null], replace: [100, 600],    labor_hours: [0.5, 2] },
   },
   mirror: {
-    economy:  { repair: [50, 150],    replace: [100, 300],   labor_hours: [1, 2] },
-    midsize:  { repair: [75, 200],    replace: [150, 500],   labor_hours: [1, 2] },
-    luxury:   { repair: [100, 300],   replace: [400, 1200],  labor_hours: [1, 3] },
-    truck_suv:{ repair: [75, 200],    replace: [150, 600],   labor_hours: [1, 2] },
+    economy:     { repair: [50, 150],    replace: [100, 300],    labor_hours: [1, 2] },
+    midsize:     { repair: [75, 200],    replace: [150, 500],    labor_hours: [1, 2] },
+    premium:     { repair: [90, 250],    replace: [250, 800],    labor_hours: [1, 2.5] },
+    luxury:      { repair: [100, 300],   replace: [400, 1200],   labor_hours: [1, 3] },
+    ultra_luxury:{ repair: [200, 500],   replace: [800, 2500],   labor_hours: [1, 3] },
+    truck_suv:   { repair: [75, 200],    replace: [150, 600],    labor_hours: [1, 2] },
   },
   trunk: {
-    economy:  { repair: [200, 500],   replace: [400, 900],   labor_hours: [2, 4] },
-    midsize:  { repair: [300, 700],   replace: [500, 1300],  labor_hours: [2, 5] },
-    luxury:   { repair: [500, 1000],  replace: [1000, 2800], labor_hours: [3, 6] },
-    truck_suv:{ repair: [300, 700],   replace: [500, 1500],  labor_hours: [2, 5] },
+    economy:     { repair: [200, 500],   replace: [400, 900],    labor_hours: [2, 4] },
+    midsize:     { repair: [300, 700],   replace: [500, 1300],   labor_hours: [2, 5] },
+    premium:     { repair: [400, 850],   replace: [750, 2000],   labor_hours: [3, 6] },
+    luxury:      { repair: [500, 1000],  replace: [1000, 2800],  labor_hours: [3, 6] },
+    ultra_luxury:{ repair: [800, 1800],  replace: [2000, 5500],  labor_hours: [4, 8] },
+    truck_suv:   { repair: [300, 700],   replace: [500, 1500],   labor_hours: [2, 5] },
   },
   quarter_panel: {
-    economy:  { repair: [400, 900],   replace: [800, 2000],  labor_hours: [6, 12] },
-    midsize:  { repair: [500, 1200],  replace: [1000, 3000], labor_hours: [8, 14] },
-    luxury:   { repair: [800, 2000],  replace: [2000, 5500], labor_hours: [10, 18] },
-    truck_suv:{ repair: [600, 1400],  replace: [1200, 3500], labor_hours: [8, 15] },
+    economy:     { repair: [400, 900],   replace: [800, 2000],   labor_hours: [6, 12] },
+    midsize:     { repair: [500, 1200],  replace: [1000, 3000],  labor_hours: [8, 14] },
+    premium:     { repair: [650, 1600],  replace: [1500, 4200],  labor_hours: [9, 16] },
+    luxury:      { repair: [800, 2000],  replace: [2000, 5500],  labor_hours: [10, 18] },
+    ultra_luxury:{ repair: [1500, 3500], replace: [4000, 10000], labor_hours: [12, 22] },
+    truck_suv:   { repair: [600, 1400],  replace: [1200, 3500],  labor_hours: [8, 15] },
   },
   roof: {
-    economy:  { repair: [300, 800],   replace: [800, 2000],  labor_hours: [4, 8] },
-    midsize:  { repair: [400, 1000],  replace: [1000, 3000], labor_hours: [6, 10] },
-    luxury:   { repair: [600, 1500],  replace: [2000, 6000], labor_hours: [6, 14] },
-    truck_suv:{ repair: [500, 1200],  replace: [1200, 3500], labor_hours: [6, 12] },
+    economy:     { repair: [300, 800],   replace: [800, 2000],   labor_hours: [4, 8] },
+    midsize:     { repair: [400, 1000],  replace: [1000, 3000],  labor_hours: [6, 10] },
+    premium:     { repair: [500, 1250],  replace: [1500, 4500],  labor_hours: [6, 12] },
+    luxury:      { repair: [600, 1500],  replace: [2000, 6000],  labor_hours: [6, 14] },
+    ultra_luxury:{ repair: [1000, 2500], replace: [4000, 12000], labor_hours: [8, 18] },
+    truck_suv:   { repair: [500, 1200],  replace: [1200, 3500],  labor_hours: [6, 12] },
   },
   frame: {
-    economy:  { repair: [600, 2000],  replace: [2000, 5000],  labor_hours: [5, 15] },
-    midsize:  { repair: [800, 3000],  replace: [3000, 7000],  labor_hours: [8, 20] },
-    luxury:   { repair: [1500, 5000], replace: [5000, 12000], labor_hours: [10, 25] },
-    truck_suv:{ repair: [1000, 4000], replace: [3000, 10000], labor_hours: [8, 20] },
+    economy:     { repair: [600, 2000],  replace: [2000, 5000],   labor_hours: [5, 15] },
+    midsize:     { repair: [800, 3000],  replace: [3000, 7000],   labor_hours: [8, 20] },
+    premium:     { repair: [1200, 4000], replace: [4000, 9500],   labor_hours: [9, 22] },
+    luxury:      { repair: [1500, 5000], replace: [5000, 12000],  labor_hours: [10, 25] },
+    ultra_luxury:{ repair: [3000, 8000], replace: [8000, 20000],  labor_hours: [15, 35] },
+    truck_suv:   { repair: [1000, 4000], replace: [3000, 10000],  labor_hours: [8, 20] },
   },
   suspension: {
-    economy:  { repair: [200, 600],   replace: [400, 1200],  labor_hours: [2, 5] },
-    midsize:  { repair: [300, 800],   replace: [500, 1800],  labor_hours: [2, 6] },
-    luxury:   { repair: [500, 1500],  replace: [1000, 3500], labor_hours: [3, 8] },
-    truck_suv:{ repair: [400, 1000],  replace: [600, 2200],  labor_hours: [3, 7] },
+    economy:     { repair: [200, 600],   replace: [400, 1200],   labor_hours: [2, 5] },
+    midsize:     { repair: [300, 800],   replace: [500, 1800],   labor_hours: [2, 6] },
+    premium:     { repair: [400, 1200],  replace: [750, 2600],   labor_hours: [3, 7] },
+    luxury:      { repair: [500, 1500],  replace: [1000, 3500],  labor_hours: [3, 8] },
+    ultra_luxury:{ repair: [900, 2500],  replace: [2000, 7000],  labor_hours: [4, 10] },
+    truck_suv:   { repair: [400, 1000],  replace: [600, 2200],   labor_hours: [3, 7] },
   },
   airbag: {
-    economy:  { repair: [null, null], replace: [300, 800],   labor_hours: [1, 3] },
-    midsize:  { repair: [null, null], replace: [400, 1200],  labor_hours: [1, 3] },
-    luxury:   { repair: [null, null], replace: [800, 2500],  labor_hours: [2, 4] },
-    truck_suv:{ repair: [null, null], replace: [400, 1500],  labor_hours: [1, 3] },
+    economy:     { repair: [null, null], replace: [300, 800],    labor_hours: [1, 3] },
+    midsize:     { repair: [null, null], replace: [400, 1200],   labor_hours: [1, 3] },
+    premium:     { repair: [null, null], replace: [600, 1800],   labor_hours: [1.5, 3.5] },
+    luxury:      { repair: [null, null], replace: [800, 2500],   labor_hours: [2, 4] },
+    ultra_luxury:{ repair: [null, null], replace: [1500, 5000],  labor_hours: [2, 5] },
+    truck_suv:   { repair: [null, null], replace: [400, 1500],   labor_hours: [1, 3] },
   },
   grille: {
-    economy:  { repair: [50, 150],    replace: [100, 350],   labor_hours: [0.5, 1.5] },
-    midsize:  { repair: [75, 200],    replace: [150, 500],   labor_hours: [0.5, 1.5] },
-    luxury:   { repair: [150, 400],   replace: [400, 1500],  labor_hours: [0.5, 2] },
-    truck_suv:{ repair: [75, 200],    replace: [150, 600],   labor_hours: [0.5, 1.5] },
+    economy:     { repair: [50, 150],    replace: [100, 350],    labor_hours: [0.5, 1.5] },
+    midsize:     { repair: [75, 200],    replace: [150, 500],    labor_hours: [0.5, 1.5] },
+    premium:     { repair: [100, 300],   replace: [250, 1000],   labor_hours: [0.5, 2] },
+    luxury:      { repair: [150, 400],   replace: [400, 1500],   labor_hours: [0.5, 2] },
+    ultra_luxury:{ repair: [250, 700],   replace: [800, 3000],   labor_hours: [1, 3] },
+    truck_suv:   { repair: [75, 200],    replace: [150, 600],    labor_hours: [0.5, 1.5] },
   },
   paint_panel: {
-    economy:  { repair: [300, 600],   replace: [null, null],  labor_hours: [3, 6] },
-    midsize:  { repair: [400, 800],   replace: [null, null],  labor_hours: [4, 8] },
-    luxury:   { repair: [600, 1500],  replace: [null, null],  labor_hours: [5, 10] },
-    truck_suv:{ repair: [400, 900],   replace: [null, null],  labor_hours: [4, 8] },
+    economy:     { repair: [300, 600],   replace: [null, null],  labor_hours: [3, 6] },
+    midsize:     { repair: [400, 800],   replace: [null, null],  labor_hours: [4, 8] },
+    premium:     { repair: [500, 1200],  replace: [null, null],  labor_hours: [5, 9] },
+    luxury:      { repair: [600, 1500],  replace: [null, null],  labor_hours: [5, 10] },
+    ultra_luxury:{ repair: [1000, 3000], replace: [null, null],  labor_hours: [6, 14] },
+    truck_suv:   { repair: [400, 900],   replace: [null, null],  labor_hours: [4, 8] },
   },
   // --- Interior components ---
   dashboard: {
-    economy:  { repair: [200, 600],   replace: [800, 2000],  labor_hours: [3, 8] },
-    midsize:  { repair: [300, 800],   replace: [1000, 3000], labor_hours: [4, 10] },
-    luxury:   { repair: [500, 1500],  replace: [2000, 6000], labor_hours: [6, 14] },
-    truck_suv:{ repair: [400, 1000],  replace: [1200, 3500], labor_hours: [4, 10] },
+    economy:     { repair: [200, 600],   replace: [800, 2000],   labor_hours: [3, 8] },
+    midsize:     { repair: [300, 800],   replace: [1000, 3000],  labor_hours: [4, 10] },
+    premium:     { repair: [400, 1200],  replace: [1500, 4500],  labor_hours: [5, 12] },
+    luxury:      { repair: [500, 1500],  replace: [2000, 6000],  labor_hours: [6, 14] },
+    ultra_luxury:{ repair: [1000, 3000], replace: [5000, 12000], labor_hours: [8, 18] },
+    truck_suv:   { repair: [400, 1000],  replace: [1200, 3500],  labor_hours: [4, 10] },
   },
   seat: {
-    economy:  { repair: [150, 500],   replace: [500, 1500],  labor_hours: [2, 5] },
-    midsize:  { repair: [200, 700],   replace: [800, 2500],  labor_hours: [2, 6] },
-    luxury:   { repair: [400, 1200],  replace: [1500, 5000], labor_hours: [3, 8] },
-    truck_suv:{ repair: [250, 800],   replace: [900, 3000],  labor_hours: [2, 6] },
+    economy:     { repair: [150, 500],   replace: [500, 1500],   labor_hours: [2, 5] },
+    midsize:     { repair: [200, 700],   replace: [800, 2500],   labor_hours: [2, 6] },
+    premium:     { repair: [300, 1000],  replace: [1500, 5000],  labor_hours: [3, 7] },
+    luxury:      { repair: [400, 1200],  replace: [2500, 9000],  labor_hours: [3, 8] },
+    ultra_luxury:{ repair: [800, 2500],  replace: [5000, 15000], labor_hours: [4, 10] },
+    truck_suv:   { repair: [250, 800],   replace: [900, 3500],   labor_hours: [2, 6] },
   },
   headliner: {
-    economy:  { repair: [150, 400],   replace: [300, 800],   labor_hours: [2, 5] },
-    midsize:  { repair: [200, 500],   replace: [400, 1200],  labor_hours: [3, 6] },
-    luxury:   { repair: [300, 800],   replace: [800, 2500],  labor_hours: [4, 8] },
-    truck_suv:{ repair: [250, 600],   replace: [500, 1500],  labor_hours: [3, 7] },
+    economy:     { repair: [150, 400],   replace: [300, 800],    labor_hours: [2, 5] },
+    midsize:     { repair: [200, 500],   replace: [400, 1200],   labor_hours: [3, 6] },
+    premium:     { repair: [250, 650],   replace: [600, 1800],   labor_hours: [3, 7] },
+    luxury:      { repair: [300, 800],   replace: [800, 2500],   labor_hours: [4, 8] },
+    ultra_luxury:{ repair: [500, 1500],  replace: [1500, 5000],  labor_hours: [5, 10] },
+    truck_suv:   { repair: [250, 600],   replace: [500, 1500],   labor_hours: [3, 7] },
   },
   steering_wheel: {
-    economy:  { repair: [null, null], replace: [150, 400],   labor_hours: [1, 2] },
-    midsize:  { repair: [null, null], replace: [200, 600],   labor_hours: [1, 2] },
-    luxury:   { repair: [null, null], replace: [500, 1500],  labor_hours: [1, 3] },
-    truck_suv:{ repair: [null, null], replace: [250, 700],   labor_hours: [1, 2] },
+    economy:     { repair: [null, null], replace: [150, 400],    labor_hours: [1, 2] },
+    midsize:     { repair: [null, null], replace: [200, 600],    labor_hours: [1, 2] },
+    premium:     { repair: [null, null], replace: [350, 1000],   labor_hours: [1, 2.5] },
+    luxury:      { repair: [null, null], replace: [500, 1500],   labor_hours: [1, 3] },
+    ultra_luxury:{ repair: [null, null], replace: [1000, 3500],  labor_hours: [1.5, 4] },
+    truck_suv:   { repair: [null, null], replace: [250, 700],    labor_hours: [1, 2] },
   },
   center_console: {
-    economy:  { repair: [100, 300],   replace: [200, 600],   labor_hours: [1, 3] },
-    midsize:  { repair: [150, 400],   replace: [300, 900],   labor_hours: [2, 4] },
-    luxury:   { repair: [300, 800],   replace: [600, 2000],  labor_hours: [2, 5] },
-    truck_suv:{ repair: [150, 500],   replace: [350, 1000],  labor_hours: [2, 4] },
+    economy:     { repair: [100, 300],   replace: [200, 600],    labor_hours: [1, 3] },
+    midsize:     { repair: [150, 400],   replace: [300, 900],    labor_hours: [2, 4] },
+    premium:     { repair: [200, 600],   replace: [450, 1400],   labor_hours: [2, 4.5] },
+    luxury:      { repair: [300, 800],   replace: [600, 2000],   labor_hours: [2, 5] },
+    ultra_luxury:{ repair: [500, 1500],  replace: [1200, 4000],  labor_hours: [3, 7] },
+    truck_suv:   { repair: [150, 500],   replace: [350, 1000],   labor_hours: [2, 4] },
   },
   door_panel_interior: {
-    economy:  { repair: [100, 300],   replace: [200, 500],   labor_hours: [1, 3] },
-    midsize:  { repair: [150, 400],   replace: [300, 800],   labor_hours: [2, 4] },
-    luxury:   { repair: [300, 700],   replace: [600, 1800],  labor_hours: [2, 5] },
-    truck_suv:{ repair: [150, 450],   replace: [350, 900],   labor_hours: [2, 4] },
+    economy:     { repair: [100, 300],   replace: [200, 500],    labor_hours: [1, 3] },
+    midsize:     { repair: [150, 400],   replace: [300, 800],    labor_hours: [2, 4] },
+    premium:     { repair: [200, 550],   replace: [450, 1300],   labor_hours: [2, 4.5] },
+    luxury:      { repair: [300, 700],   replace: [600, 1800],   labor_hours: [2, 5] },
+    ultra_luxury:{ repair: [500, 1200],  replace: [1200, 3500],  labor_hours: [3, 7] },
+    truck_suv:   { repair: [150, 450],   replace: [350, 900],    labor_hours: [2, 4] },
   },
   carpet_flooring: {
-    economy:  { repair: [100, 300],   replace: [300, 800],   labor_hours: [2, 5] },
-    midsize:  { repair: [150, 400],   replace: [400, 1200],  labor_hours: [3, 6] },
-    luxury:   { repair: [250, 700],   replace: [800, 2500],  labor_hours: [4, 8] },
-    truck_suv:{ repair: [200, 500],   replace: [500, 1500],  labor_hours: [3, 6] },
+    economy:     { repair: [100, 300],   replace: [300, 800],    labor_hours: [2, 5] },
+    midsize:     { repair: [150, 400],   replace: [400, 1200],   labor_hours: [3, 6] },
+    premium:     { repair: [200, 550],   replace: [600, 1800],   labor_hours: [3, 7] },
+    luxury:      { repair: [250, 700],   replace: [800, 2500],   labor_hours: [4, 8] },
+    ultra_luxury:{ repair: [400, 1200],  replace: [1500, 5000],  labor_hours: [5, 10] },
+    truck_suv:   { repair: [200, 500],   replace: [500, 1500],   labor_hours: [3, 6] },
   },
   engine_compartment: {
-    economy:  { repair: [1000, 3000], replace: [3000, 8000],  labor_hours: [10, 25] },
-    midsize:  { repair: [1500, 5000], replace: [5000, 12000], labor_hours: [12, 30] },
-    luxury:   { repair: [3000, 8000], replace: [8000, 25000], labor_hours: [15, 40] },
-    truck_suv:{ repair: [2000, 6000], replace: [5000, 15000], labor_hours: [12, 30] },
+    economy:     { repair: [1000, 3000], replace: [3000, 8000],   labor_hours: [10, 25] },
+    midsize:     { repair: [1500, 5000], replace: [5000, 12000],  labor_hours: [12, 30] },
+    premium:     { repair: [2200, 6500], replace: [6500, 18000],  labor_hours: [14, 35] },
+    luxury:      { repair: [3000, 8000], replace: [8000, 25000],  labor_hours: [15, 40] },
+    ultra_luxury:{ repair: [5000, 15000],replace: [15000, 50000], labor_hours: [20, 60] },
+    truck_suv:   { repair: [2000, 6000], replace: [5000, 15000],  labor_hours: [12, 30] },
   },
   wiring_harness: {
-    economy:  { repair: [300, 800],   replace: [800, 2000],  labor_hours: [4, 10] },
-    midsize:  { repair: [400, 1200],  replace: [1000, 3000], labor_hours: [5, 12] },
-    luxury:   { repair: [600, 2000],  replace: [2000, 6000], labor_hours: [8, 20] },
-    truck_suv:{ repair: [500, 1500],  replace: [1200, 4000], labor_hours: [6, 15] },
+    economy:     { repair: [300, 800],   replace: [800, 2000],   labor_hours: [4, 10] },
+    midsize:     { repair: [400, 1200],  replace: [1000, 3000],  labor_hours: [5, 12] },
+    premium:     { repair: [500, 1600],  replace: [1500, 4500],  labor_hours: [6, 16] },
+    luxury:      { repair: [600, 2000],  replace: [2000, 6000],  labor_hours: [8, 20] },
+    ultra_luxury:{ repair: [1000, 3500], replace: [4000, 12000], labor_hours: [10, 25] },
+    truck_suv:   { repair: [500, 1500],  replace: [1200, 4000],  labor_hours: [6, 15] },
   },
   wheel_tire: {
-    economy:  { repair: [50, 150],    replace: [100, 400],   labor_hours: [0.5, 1] },
-    midsize:  { repair: [75, 200],    replace: [150, 600],   labor_hours: [0.5, 1] },
-    luxury:   { repair: [100, 300],   replace: [300, 1200],  labor_hours: [0.5, 1.5] },
-    truck_suv:{ repair: [75, 250],    replace: [200, 800],   labor_hours: [0.5, 1] },
+    economy:     { repair: [50, 150],    replace: [100, 400],    labor_hours: [0.5, 1] },
+    midsize:     { repair: [75, 200],    replace: [150, 600],    labor_hours: [0.5, 1] },
+    premium:     { repair: [90, 250],    replace: [200, 900],    labor_hours: [0.5, 1] },
+    luxury:      { repair: [100, 300],   replace: [300, 1200],   labor_hours: [0.5, 1.5] },
+    ultra_luxury:{ repair: [200, 500],   replace: [600, 2500],   labor_hours: [0.5, 2] },
+    truck_suv:   { repair: [75, 250],    replace: [200, 800],    labor_hours: [0.5, 1] },
   },
   sunroof: {
-    economy:  { repair: [200, 500],   replace: [500, 1200],  labor_hours: [2, 5] },
-    midsize:  { repair: [300, 700],   replace: [700, 1800],  labor_hours: [3, 6] },
-    luxury:   { repair: [500, 1200],  replace: [1200, 3500], labor_hours: [3, 8] },
-    truck_suv:{ repair: [400, 900],   replace: [800, 2200],  labor_hours: [3, 7] },
+    economy:     { repair: [200, 500],   replace: [500, 1200],   labor_hours: [2, 5] },
+    midsize:     { repair: [300, 700],   replace: [700, 1800],   labor_hours: [3, 6] },
+    premium:     { repair: [400, 950],   replace: [900, 2600],   labor_hours: [3, 7] },
+    luxury:      { repair: [500, 1200],  replace: [1200, 3500],  labor_hours: [3, 8] },
+    ultra_luxury:{ repair: [800, 2000],  replace: [2500, 7000],  labor_hours: [4, 10] },
+    truck_suv:   { repair: [400, 900],   replace: [800, 2200],   labor_hours: [3, 7] },
   },
 };
 
@@ -475,7 +549,7 @@ export function buildPricingContext(type, options) {
   if (type === "auto") {
     const { make, model } = options;
     const cls = getVehicleClass(make, model);
-    const clsLabel = { economy: "Economy", midsize: "Mid-size", luxury: "Luxury", truck_suv: "Truck/SUV" }[cls];
+    const clsLabel = { economy: "Economy", midsize: "Mid-size", premium: "Premium", luxury: "Luxury", ultra_luxury: "Ultra-Luxury", truck_suv: "Truck/SUV" }[cls];
 
     const sourceLabel = options.freshPricing?.source === "live"
       ? "[Live pricing from Google Search]"
@@ -606,7 +680,7 @@ export async function fetchFreshPricing(type, options) {
     let promptText = "";
     if (type === "auto") {
       const cls = getVehicleClass(options.make, options.model);
-      const clsLabel = { economy: "Economy", midsize: "Mid-size", luxury: "Luxury", truck_suv: "Truck/SUV" }[cls];
+      const clsLabel = { economy: "Economy", midsize: "Mid-size", premium: "Premium", luxury: "Luxury", ultra_luxury: "Ultra-Luxury", truck_suv: "Truck/SUV" }[cls];
       const componentNames = Object.keys(AUTO_PARTS_PRICING).map((k) => k.replace(/_/g, " ")).join(", ");
       promptText = `Find current 2025-2026 US auto body repair costs for a ${clsLabel} class vehicle in ${state.label}.
 
@@ -796,33 +870,42 @@ export function validateEstimates(assessment, type, options) {
 
       const pricing = AUTO_PARTS_PRICING[key][cls];
       const laborRate = state.autoLaborRate;
-      // Calculate expected total: wider of repair/replace + labor
-      const repairTotal = pricing.repair[0] !== null
-        ? [pricing.repair[0], pricing.repair[1]]
-        : [0, 0];
-      const replaceTotal = pricing.replace[0] !== null
-        ? [pricing.replace[0], pricing.replace[1]]
-        : [0, 0];
-
-      const refLow = Math.min(
-        repairTotal[0] || Infinity,
-        replaceTotal[0] || Infinity
-      );
-      const refHigh = Math.max(repairTotal[1], replaceTotal[1]);
-
-      // Add labor cost estimate
       const laborLow = pricing.labor_hours[0] * laborRate;
       const laborHigh = pricing.labor_hours[1] * laborRate;
-      const totalRefLow = (refLow === Infinity ? 0 : refLow);
-      const totalRefHigh = refHigh + laborHigh;
 
-      // 40% tolerance band
-      const tolerance = 0.4;
+      // Determine severity-appropriate range based on AI estimate
+      const hasRepair = pricing.repair[0] !== null;
+      const hasReplace = pricing.replace[0] !== null;
+
+      let totalRefLow, totalRefHigh;
+      if (hasRepair && hasReplace) {
+        // Show repair low + labor low → replace high + labor high
+        totalRefLow = pricing.repair[0] + laborLow;
+        totalRefHigh = pricing.replace[1] + laborHigh;
+      } else if (hasReplace) {
+        totalRefLow = pricing.replace[0] + laborLow;
+        totalRefHigh = pricing.replace[1] + laborHigh;
+      } else if (hasRepair) {
+        totalRefLow = pricing.repair[0] + laborLow;
+        totalRefHigh = pricing.repair[1] + laborHigh;
+      } else {
+        totalRefLow = laborLow;
+        totalRefHigh = laborHigh;
+      }
+
+      // 30% tolerance band
+      const tolerance = 0.3;
       const lowerBound = totalRefLow * (1 - tolerance);
       const upperBound = totalRefHigh * (1 + tolerance);
 
+      // Build detailed reference message
+      const parts = [];
+      if (hasRepair) parts.push(`Repair: $${pricing.repair[0].toLocaleString()}–$${pricing.repair[1].toLocaleString()}`);
+      if (hasReplace) parts.push(`Replace: $${pricing.replace[0].toLocaleString()}–$${pricing.replace[1].toLocaleString()}`);
+      parts.push(`Labor: ${pricing.labor_hours[0]}–${pricing.labor_hours[1]} hrs × $${laborRate}/hr`);
+
       let status = "in_range";
-      let message = `Reference: $${totalRefLow.toLocaleString()}-$${totalRefHigh.toLocaleString()}`;
+      let message = `${parts.join(" · ")} · Total: $${totalRefLow.toLocaleString()}–$${totalRefHigh.toLocaleString()}`;
 
       if (midEstimate < lowerBound) {
         status = "below_range";
