@@ -3,7 +3,7 @@ import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fet
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
 import { PARTS_CATALOG_PROMPT, ALL_PARTS } from "./parts-catalog.js";
-import { LABOR_TIMES, getLaborHours, getRefinishHours, getClassMultiplier } from "./labor-times.js";
+import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassMultiplier } from "./labor-times.js";
 
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
@@ -2062,11 +2062,17 @@ GENERAL ACCURACY RULES:
                 overrideCount++;
               } else if (op === "REPAIR") {
                 const sev = (d.severity || "moderate").toLowerCase();
-                const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
-                  : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
-                  : LABOR_TIMES.repair.moderate.hours;
-                const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
-                d.labor = { hours: repMid, rate: stateBodyRate, type: "body" };
+                const compRepair = getRepairHours(compName, sev);
+                if (compRepair) {
+                  const repMid = Math.round(((compRepair.hours[0] + compRepair.hours[1]) / 2) * classFactor * 10) / 10;
+                  d.labor = { hours: repMid, rate: stateBodyRate, type: compRepair.type || "body" };
+                } else {
+                  const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
+                    : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
+                    : LABOR_TIMES.repair.moderate.hours;
+                  const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
+                  d.labor = { hours: repMid, rate: stateBodyRate, type: "body" };
+                }
                 overrideCount++;
               } else {
                 d.labor = { hours: 1.0, rate: stateBodyRate, type: "body" };
@@ -2103,22 +2109,29 @@ GENERAL ACCURACY RULES:
                 overrideCount++;
               }
             } else if (d.labor && op === "REPAIR") {
-              // For REPAIR: first try component-specific hours, then severity-based
-              const dbEntry = getLaborHours(compName);
-              if (dbEntry) {
-                // Use 60% of R&R hours as repair baseline (repair < full replace)
-                const repMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * 0.6 * classFactor * 10) / 10;
+              // For REPAIR: 1) per-component repair hours, 2) 60% of R&R, 3) generic severity
+              const sev = (d.severity || "moderate").toLowerCase();
+              const compRepair = getRepairHours(compName, sev);
+              if (compRepair) {
+                const repMid = Math.round(((compRepair.hours[0] + compRepair.hours[1]) / 2) * classFactor * 10) / 10;
                 d.labor.hours = repMid;
-                d.labor.type = dbEntry.type || d.labor.type;
+                d.labor.type = compRepair.type || d.labor.type;
                 overrideCount++;
               } else {
-                const sev = (d.severity || "moderate").toLowerCase();
-                const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
-                  : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
-                  : LABOR_TIMES.repair.moderate.hours;
-                const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
-                d.labor.hours = repMid;
-                overrideCount++;
+                const dbEntry = getLaborHours(compName);
+                if (dbEntry) {
+                  const repMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * 0.6 * classFactor * 10) / 10;
+                  d.labor.hours = repMid;
+                  d.labor.type = dbEntry.type || d.labor.type;
+                  overrideCount++;
+                } else {
+                  const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
+                    : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
+                    : LABOR_TIMES.repair.moderate.hours;
+                  const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
+                  d.labor.hours = repMid;
+                  overrideCount++;
+                }
               }
             } else if (d.labor && op === "SUBLET") {
               // Sublet: zero out labor hours (cost is in sublet field)
