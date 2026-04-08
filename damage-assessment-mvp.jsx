@@ -1126,7 +1126,7 @@ function NewClaimView({ onSubmit, initialType }) {
         // Retries same model 2x with backoff, then falls back to next model
         const geminiTextCall = async (body) => {
           const key = import.meta.env.VITE_GEMINI_API_KEY;
-          const models = ["gemini-2.5-flash", "gemini-flash-latest"];
+          const models = ["gemini-flash-latest", "gemini-2.5-flash"];
           for (const model of models) {
             for (let attempt = 0; attempt < 3; attempt++) {
               try {
