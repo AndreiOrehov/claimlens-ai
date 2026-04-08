@@ -110,10 +110,17 @@ export const ALTERNATE_PARTS_DISCLAIMER = "This estimate may include the use of 
 
 // --- Diagnostic/ADAS flat rates (common sublet items) ---
 export const DIAGNOSTIC_FLAT_RATES = {
-  pre_repair_scan:    { low: 30, high: 75, label: "Pre-repair diagnostic scan" },
-  post_repair_scan:   { low: 30, high: 75, label: "Post-repair diagnostic scan" },
-  adas_calibration:   { low: 200, high: 600, label: "ADAS calibration (per system)" },
-  four_wheel_align:   { low: 80, high: 175, label: "4-wheel alignment" },
+  pre_repair_scan:          { low: 30, high: 50, label: "Pre-repair diagnostic scan" },
+  post_repair_scan:         { low: 30, high: 50, label: "Post-repair diagnostic scan" },
+  pre_post_scan_combo:      { low: 50, high: 90, label: "Pre + post repair scan combo" },
+  oem_full_system_scan:     { low: 75, high: 150, label: "OEM-level full system scan" },
+  adas_static_calibration:  { low: 250, high: 600, label: "ADAS static calibration (target-based)" },
+  adas_dynamic_calibration: { low: 150, high: 350, label: "ADAS dynamic calibration (road drive)" },
+  adas_dual_calibration:    { low: 400, high: 800, label: "ADAS dual calibration (static + dynamic)" },
+  forward_camera_calibration: { low: 250, high: 500, label: "Forward-facing camera calibration" },
+  blind_spot_calibration:   { low: 200, high: 400, label: "Blind-spot radar calibration (per side)" },
+  surround_view_calibration: { low: 400, high: 700, label: "Surround-view camera system calibration" },
+  four_wheel_align:         { low: 80, high: 175, label: "4-wheel alignment" },
 };
 
 // --- Vehicle classification ---
