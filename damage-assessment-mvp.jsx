@@ -1127,7 +1127,7 @@ function NewClaimView({ onSubmit, initialType }) {
                   console.warn(`Gemini ${model}: ${res.status}, retry ${attempt + 1}/3...`);
                   continue; // retry same model
                 }
-                console.warn(`Gemini ${model}: ${res.status}, trying next model...`);
+                try { const errBody = await res.json(); console.warn(`Gemini ${model}: ${res.status}`, errBody?.error?.message || errBody); } catch {}
                 break; // non-retryable error → try next model
               } catch (e) { console.warn(`Gemini ${model} attempt ${attempt + 1} failed:`, e.message); }
             }
