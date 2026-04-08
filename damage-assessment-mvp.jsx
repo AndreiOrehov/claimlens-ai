@@ -1839,13 +1839,26 @@ GENERAL ACCURACY RULES:
             const compName = d.component || "";
             const op = (d.operation || "").toUpperCase();
 
-            // Override R&R / R&I / Repair labor hours from database
-            if (d.labor && (op === "R&R" || op === "R&I" || op === "REPAIR")) {
+            // Override labor hours from database
+            if (d.labor && (op === "R&R" || op === "R&I")) {
+              // R&R / R&I: use component-specific database hours
               const dbEntry = getLaborHours(compName);
               if (dbEntry) {
                 const dbMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * classFactor * 10) / 10;
                 d.labor.hours = dbMid;
                 d.labor.type = dbEntry.type || d.labor.type;
+                overrideCount++;
+              }
+            } else if (d.labor && op === "REPAIR") {
+              // REPAIR: use severity-based repair hours (NOT R&R hours)
+              const sev = (d.severity || "moderate").toLowerCase();
+              const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
+                : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
+                : LABOR_TIMES.repair.moderate.hours;
+              const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
+              // Don't let repair hours exceed Gemini's original if Gemini was lower (trust AI for light damage)
+              if (d.labor.hours > repMid * 1.5) {
+                d.labor.hours = repMid;
                 overrideCount++;
               }
             }
