@@ -1199,10 +1199,13 @@ function NewClaimView({ onSubmit, initialType }) {
         // --- Unified text lookup: Perplexity primary → OpenAI → Gemini fallback ---
         const textLookup = async (prompt, maxTokens = 400) => {
           const result = await perplexityTextCall(prompt, maxTokens);
-          if (result) return result;
+          if (result) { console.log("Text lookup: Perplexity ✓"); return result; }
           const result2 = await openaiTextCall(prompt, maxTokens);
-          if (result2) return result2;
-          return geminiTextCall(prompt, maxTokens);
+          if (result2) { console.log("Text lookup: OpenAI fallback ✓"); return result2; }
+          const result3 = await geminiTextCall(prompt, maxTokens);
+          if (result3) { console.log("Text lookup: Gemini fallback ✓"); return result3; }
+          console.warn("Text lookup: all providers failed");
+          return null;
         };
 
         // --- Run all pre-lookups in parallel ---
