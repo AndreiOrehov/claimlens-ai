@@ -1074,14 +1074,31 @@ function NewClaimView({ onSubmit, initialType }) {
           return total.slice(0, 10);
         });
       } else {
-        // Regular image
+        // Regular image — resize to max 2048px for optimal Gemini performance
         if (photos.length >= 10) { setError("Maximum 10 photos per claim"); return; }
         const reader = new FileReader();
         reader.onload = (ev) => {
-          setPhotos((prev) => {
-            if (prev.length >= 10) return prev;
-            return [...prev, { name: file.name, data: ev.target.result, size: file.size, caption: "" }];
-          });
+          const img = new Image();
+          img.onload = () => {
+            const MAX_DIM = 2048;
+            let { width, height } = img;
+            if (width > MAX_DIM || height > MAX_DIM) {
+              const scale = MAX_DIM / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+            const resized = canvas.toDataURL("image/jpeg", 0.92);
+            setPhotos((prev) => {
+              if (prev.length >= 10) return prev;
+              return [...prev, { name: file.name, data: resized, size: file.size, caption: "" }];
+            });
+          };
+          img.src = ev.target.result;
         };
         reader.readAsDataURL(file);
       }
@@ -1794,9 +1811,10 @@ GENERAL ACCURACY RULES:
           });
         });
 
-        // Include ALL components found by any run (minVotes=1) — missing real damage
-        // is worse than a false positive (adjuster verifies). Mark low-confidence items.
-        const minVotes = 1;
+        // Require 2+ runs to agree on a component (minVotes=2) — filters out
+        // hallucinated structural/mechanical items that inflate estimates by $5K-$15K.
+        // Adjuster will catch anything we miss; false positives hurt credibility more.
+        const minVotes = 2;
         console.log("Merge damageMap:", Object.entries(damageMap).map(([k, v]) => `${k}(${new Set(v.entries.map(e=>e.runIdx)).size} runs)`).join(", "));
         const mergedDamages = [];
         const isAutoType = assessments[0]?.damage_type === "auto" || assessments[0]?.damage_type === undefined;
