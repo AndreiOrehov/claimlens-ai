@@ -1216,10 +1216,15 @@ function NewClaimView({ onSubmit, initialType }) {
           "headlight,taillight,mirror,windshield,grille",
           "quarter_panel,trunk_tailgate,radiator,ac_condenser",
         ];
-        const pricePrompt = (keys) => `${vYear} ${vMake} ${vModel} parts prices USD. JSON only, no markdown.
-Keys: ${keys}
-Each: {"o":[low,high],"a":[low,high]} (o=OEM,a=aftermarket,null if N/A)
-Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}`;
+        const pricePrompt = (keys) => `Search for ${vYear} ${vMake} ${vModel} replacement auto body parts prices in USD. I need OEM and aftermarket price ranges for each part listed below. If you cannot find an exact price, provide your best estimate based on similar vehicles in this class.
+
+Parts needed: ${keys}
+
+IMPORTANT: Respond with ONLY a JSON object, no explanation, no markdown. Every key must have a value (never null).
+Format: {"part_name":{"o":[low,high],"a":[low,high]}}
+Where o=OEM price range, a=aftermarket price range.
+If aftermarket is not available for this part, estimate it as 40-60% of OEM.
+Example: {"front_bumper":{"o":[800,1200],"a":[350,550]}}`;
         const pricePromises = priceGroups.map(keys => textLookup(pricePrompt(keys), 400).catch(() => null));
 
         // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
