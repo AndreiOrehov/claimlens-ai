@@ -34,9 +34,26 @@ const DB = {
     try { return JSON.parse(localStorage.getItem(`cl_claims_${userId}`)) || []; } catch { return []; }
   },
   saveClaim: (userId, claim) => {
+    // Strip full-size photos from localStorage (they're too large — ~1-3MB each as base64)
+    // Photos stay in memory for the current session's report view
+    const storableClaim = { ...claim };
+    const photoCount = storableClaim.photos?.length || 0;
+    storableClaim.photos = (storableClaim.photos || []).map(p => ({
+      name: p.name, caption: p.caption || "", data: "",
+    }));
+    storableClaim._photoCount = photoCount;
     const claims = DB.getClaims(userId);
-    claims.unshift(claim);
-    localStorage.setItem(`cl_claims_${userId}`, JSON.stringify(claims));
+    claims.unshift(storableClaim);
+    try {
+      localStorage.setItem(`cl_claims_${userId}`, JSON.stringify(claims));
+    } catch (e) {
+      // Still too big — trim oldest claims
+      console.warn("Storage quota exceeded, trimming old claims...");
+      while (claims.length > 1) {
+        claims.pop();
+        try { localStorage.setItem(`cl_claims_${userId}`, JSON.stringify(claims)); return; } catch { /* keep trimming */ }
+      }
+    }
   },
   logout: () => localStorage.removeItem("cl_user"),
   getUsage: (userId) => {
@@ -2730,16 +2747,21 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
       </div>
 
       {/* Photos */}
-      {claim.photos?.length > 0 && (
+      {claim.photos?.some(p => p.data && p.data.length > 10) && (
         <div style={{
-          display: "grid", gridTemplateColumns: `repeat(${isMobile ? Math.min(claim.photos.length, 2) : Math.min(claim.photos.length, 4)}, 1fr)`,
+          display: "grid", gridTemplateColumns: `repeat(${isMobile ? Math.min(claim.photos.filter(p=>p.data).length, 2) : Math.min(claim.photos.filter(p=>p.data).length, 4)}, 1fr)`,
           gap: 8, marginBottom: 16,
         }}>
-          {claim.photos.map((p, i) => (
+          {claim.photos.filter(p => p.data && p.data.length > 10).map((p, i) => (
             <div key={i} style={{ borderRadius: 10, overflow: "hidden", aspectRatio: "4/3", border: `1px solid ${palette.border}` }}>
               <img src={p.data} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </div>
           ))}
+        </div>
+      )}
+      {claim._photoCount > 0 && !claim.photos?.some(p => p.data && p.data.length > 10) && (
+        <div style={{ padding: 12, borderRadius: 10, background: palette.surfaceAlt, border: `1px solid ${palette.border}`, marginBottom: 16, textAlign: "center" }}>
+          <span style={{ fontSize: 12, color: palette.textDim }}>{claim._photoCount} photo{claim._photoCount > 1 ? "s" : ""} were submitted (not stored in history)</span>
         </div>
       )}
 
