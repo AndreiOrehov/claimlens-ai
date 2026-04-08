@@ -898,6 +898,7 @@ function NewClaimView({ onSubmit, initialType }) {
   const [vMake, setVMake] = useState("");
   const [vModel, setVModel] = useState("");
   const [vYear, setVYear] = useState("");
+  const [vTrim, setVTrim] = useState("");
   const [vMileage, setVMileage] = useState("");
 
   // Property fields
@@ -979,8 +980,9 @@ function NewClaimView({ onSubmit, initialType }) {
     .filter(([, range]) => +vYear >= range[0] && +vYear <= range[1])
     .map(([name]) => name).sort() : [];
 
-  const handleMakeChange = (val) => { setVMake(val); setVYear(""); setVModel(""); };
-  const handleYearChange = (val) => { setVYear(val); setVModel(""); };
+  const handleMakeChange = (val) => { setVMake(val); setVYear(""); setVModel(""); setVTrim(""); };
+  const handleYearChange = (val) => { setVYear(val); setVModel(""); setVTrim(""); };
+  const handleModelChange = (val) => { setVModel(val); setVTrim(""); };
 
   const extractVideoFrames = (file, maxFrames = 8) => {
     return new Promise((resolve) => {
@@ -1100,7 +1102,7 @@ function NewClaimView({ onSubmit, initialType }) {
       if (type === "auto" && vMake && vModel && vYear) {
         // Check ACV cache first (keyed by year+make+model+mileage bucket, TTL 7 days)
         const mileageBucket = vMileage ? Math.round(parseInt(vMileage) / 10000) * 10000 : 0;
-        const acvCacheKey = `cl_acv_${vYear}_${vMake}_${vModel}_${mileageBucket}_${claimState || ""}`.toLowerCase().replace(/\s+/g, "_");
+        const acvCacheKey = `cl_acv_${vYear}_${vMake}_${vModel}_${vTrim || ""}_${mileageBucket}_${claimState || ""}`.toLowerCase().replace(/\s+/g, "_");
         try {
           const cached = JSON.parse(localStorage.getItem(acvCacheKey));
           if (cached && Date.now() - cached._ts < 7 * 24 * 60 * 60 * 1000) {
@@ -1156,11 +1158,50 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
         const zipCode = stateZip?.zip || "90210"; // fallback zip
 
         // MarketCheck: real market data from dealer listings
-        // Use search endpoint with rows=50 to get listings, then compute stats ourselves
+        // MC model names differ from ours (e.g. MC:"LS" vs ours:"LS 460", MC:"3 Series" vs ours:"330i")
+        // Strategy: try exact → try base (strip numbers) → try make+year only (filter by heading)
+        const mcBaseModel = vModel.replace(/\s+\d{2,4}[a-z]*\+?$/i, "").trim();
         const mcTimeout = (promise, ms) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
-        const marketCheckPromise = (!acvData && mcKey) ? mcTimeout(fetch(
-          `https://api.marketcheck.com/v2/search/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}&model=${encodeURIComponent(vModel)}&zip=${zipCode}&radius=100&rows=30&sort_by=distance&sort_order=asc`
-        ), 8000).catch((e) => { console.warn("MarketCheck request failed:", e.message); return null; }) : Promise.resolve(null);
+        const mcBuildUrl = (model) => `https://api.marketcheck.com/v2/search/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}${model ? `&model=${encodeURIComponent(model)}` : ""}&zip=${zipCode}&radius=100&rows=30&sort_by=distance&sort_order=asc`;
+        const marketCheckPromise = (!acvData && mcKey) ? (async () => {
+          try {
+            // Try 1: exact model name
+            let res = await mcTimeout(fetch(mcBuildUrl(vModel)), 8000);
+            if (res.ok) {
+              const data = await res.clone().json();
+              if ((data.num_found || 0) >= 3) return res;
+              // Try 2: base model (strip trailing numbers)
+              if (mcBaseModel !== vModel) {
+                console.log(`MarketCheck: "${vModel}" → ${data.num_found || 0}, trying "${mcBaseModel}"...`);
+                const res2 = await mcTimeout(fetch(mcBuildUrl(mcBaseModel)), 8000);
+                if (res2.ok) {
+                  const data2 = await res2.clone().json();
+                  if ((data2.num_found || 0) >= 3) return res2;
+                }
+              }
+              // Try 3: make+year only, filter by model keyword in heading
+              console.log(`MarketCheck: "${mcBaseModel}" → few results, trying make+year with heading filter...`);
+              const res3 = await mcTimeout(fetch(mcBuildUrl("")), 8000);
+              if (res3.ok) {
+                const data3 = await res3.json();
+                // Filter listings whose heading contains our model name keywords
+                const keywords = vModel.toLowerCase().split(/[\s-]+/).filter(w => w.length > 1);
+                const filtered = (data3.listings || []).filter(l => {
+                  const h = (l.heading || "").toLowerCase();
+                  return keywords.some(kw => h.includes(kw));
+                });
+                if (filtered.length >= 3) {
+                  console.log(`MarketCheck: heading filter matched ${filtered.length} of ${data3.num_found} listings`);
+                  // Return a synthetic response with filtered listings
+                  return new Response(JSON.stringify({ num_found: filtered.length, listings: filtered }), { status: 200 });
+                }
+              }
+              // Return whatever we got from try 1
+              return res;
+            }
+            return res;
+          } catch (e) { console.warn("MarketCheck request failed:", e.message); return null; }
+        })() : Promise.resolve(null);
 
         // Gemini fallback: only if no cache AND no MarketCheck key
         const acvGeminiPromise = (!acvData && !mcKey) ? geminiTextCall({
@@ -1276,7 +1317,7 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
         }
       }
 
-      const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
+      const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vTrim ? ` ${vTrim}` : ""}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
       const propertyContext = type === "property" ? `Property: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || pType}${pCause ? `, Cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `, Area: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `, ~${pSqft} sq ft` : ""}${pYearBuilt ? `, Built: ${pYearBuilt}` : ""}` : "";
       const objectContext = vehicleContext || propertyContext;
 
@@ -1348,7 +1389,7 @@ COST CALCULATION GUIDANCE (typical ranges per unit):
 - Overhead & Profit: typically 10% overhead + 10% profit on subtotal
 - Material sales tax: varies by state (6%–10.25%)` : ""}
 ${type === "auto" && vMake ? `
-VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
+VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vTrim ? ` ${vTrim}` : ""}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
 Use this information to provide accurate, model-specific repair cost estimates. Consider the vehicle's market value when assessing repair vs. replace recommendations. Factor in OEM vs aftermarket parts pricing for this specific vehicle.${modelPricingContext}${acvContext}` : ""}
 ${type === "property" ? `
 PROPERTY DETAILS: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || "Unknown type"}${pCause ? `. Damage cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `. Primary area affected: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `. Approximate size: ${pSqft} sq ft` : ""}${pYearBuilt ? `. Year built: ${pYearBuilt}` : ""}.
@@ -1910,7 +1951,7 @@ GENERAL ACCURACY RULES:
         pricingSource: mergedPricing?.source || "reference",
         assessment,
         validation,
-        vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, mileage: vMileage } : null,
+        vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim, mileage: vMileage } : null,
         property: type === "property" ? { type: pType, cause: pCause, area: pArea, sqft: pSqft, yearBuilt: pYearBuilt, address: pAddress } : null,
         createdAt: new Date().toISOString(),
       };
@@ -1969,14 +2010,17 @@ GENERAL ACCURACY RULES:
             <Select label="Make *" value={vMake} onChange={handleMakeChange} options={makes} placeholder="Select make..." />
             <Select label="Year *" value={vYear} onChange={handleYearChange} options={years} placeholder={vMake ? "Select year..." : "Select make first"} disabled={!vMake} />
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginTop: 12 }}>
+            <Select label="Model *" value={vModel} onChange={handleModelChange} options={models} placeholder={vYear ? "Select model..." : "Select year first"} disabled={!vYear} />
+            <Input label="Trim (optional)" value={vTrim} onChange={setVTrim} placeholder="e.g. Sport, Limited, SE" />
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
-            <Select label="Model *" value={vModel} onChange={setVModel} options={models} placeholder={vYear ? "Select model..." : "Select year first"} disabled={!vYear} />
             <Input label="Mileage (optional)" value={vMileage} onChange={setVMileage} placeholder="e.g. 85000" type="number" />
             <Select label="State *" value={claimState} onChange={setClaimState} options={US_STATES} placeholder="Select state..." />
           </div>
           {vMake && vModel && vYear && (
             <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, background: palette.accentSoft, fontSize: 12, color: palette.accent, fontWeight: 500 }}>
-              {vYear} {vMake} {vModel}{vMileage ? ` · ${parseInt(vMileage).toLocaleString()} miles` : ""}
+              {vYear} {vMake} {vModel}{vTrim ? ` ${vTrim}` : ""}{vMileage ? ` · ${parseInt(vMileage).toLocaleString()} miles` : ""}
             </div>
           )}
         </div>
@@ -2277,7 +2321,7 @@ function HistoryView({ claims, onSelect }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: palette.text }}>
-                    {c.type === "auto" && c.vehicle?.make ? `${c.vehicle.year} ${c.vehicle.make} ${c.vehicle.model}` : c.type === "auto" ? "Vehicle Damage" : c.property?.type ? `${PROPERTY_TYPES.find(p=>p.value===c.property.type)?.label || "Property"} Damage` : "Property Damage"}
+                    {c.type === "auto" && c.vehicle?.make ? `${c.vehicle.year} ${c.vehicle.make} ${c.vehicle.model}${c.vehicle.trim ? ` ${c.vehicle.trim}` : ""}` : c.type === "auto" ? "Vehicle Damage" : c.property?.type ? `${PROPERTY_TYPES.find(p=>p.value===c.property.type)?.label || "Property"} Damage` : "Property Damage"}
                   </span>
                   <span style={{
                     fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
@@ -2606,7 +2650,7 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
     <div class="meta">
       <strong>Report ID:</strong> ${claim.id}<br/>
       <strong>Date:</strong> ${new Date(claim.createdAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<br/>
-      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
+      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
     </div>
   </div>
 
