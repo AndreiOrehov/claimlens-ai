@@ -62,6 +62,60 @@ export const US_STATES = [
   { value: "WY", label: "Wyoming",        zip: "82001", autoLaborRate: 137, propertyMultiplier: 1.00 },
 ];
 
+// --- State sales tax rates (applied to parts only, not labor) ---
+export const STATE_SALES_TAX = {
+  AL: 0.04, AK: 0.00, AZ: 0.056, AR: 0.065, CA: 0.0725, CO: 0.029,
+  CT: 0.0635, DE: 0.00, FL: 0.06, GA: 0.04, HI: 0.04, ID: 0.06,
+  IL: 0.0625, IN: 0.07, IA: 0.06, KS: 0.065, KY: 0.06, LA: 0.0445,
+  ME: 0.055, MD: 0.06, MA: 0.0625, MI: 0.06, MN: 0.06875, MS: 0.07,
+  MO: 0.04225, MT: 0.00, NE: 0.055, NV: 0.0685, NH: 0.00, NJ: 0.06625,
+  NM: 0.05125, NY: 0.04, NC: 0.0475, ND: 0.05, OH: 0.0575, OK: 0.045,
+  OR: 0.00, PA: 0.06, RI: 0.07, SC: 0.06, SD: 0.045, TN: 0.07,
+  TX: 0.0625, UT: 0.061, VT: 0.06, VA: 0.053, WA: 0.065, WV: 0.06,
+  WI: 0.05, WY: 0.04, DC: 0.06,
+};
+
+// --- Labor rate categories & multipliers relative to body rate ---
+// Body rate = baseline from US_STATES.autoLaborRate
+// Other categories are multiplied from that baseline
+export const LABOR_RATE_CATEGORIES = {
+  body:       { multiplier: 1.0,  label: "Body" },
+  paint:      { multiplier: 1.0,  label: "Paint/Refinish" },
+  frame:      { multiplier: 1.0,  label: "Frame/Structural" },
+  structural: { multiplier: 1.0,  label: "Structural" },
+  mechanical: { multiplier: 1.0,  label: "Mechanical" },
+  diagnostic: { multiplier: 1.15, label: "Diagnostic/ADAS" },
+  aluminum:   { multiplier: 1.5,  label: "Aluminum Certified" },
+  glass:      { multiplier: 1.0,  label: "Glass" },
+};
+
+// --- Fraud & alternate parts disclaimers ---
+// States with specific mandatory fraud warning language
+export const STATE_FRAUD_WARNINGS = {
+  NY: "Any person who knowingly and with intent to defraud any insurance company or other person files an application for insurance or statement of claim containing any materially false information, or conceals for the purpose of misleading, information concerning any fact material thereto, commits a fraudulent insurance act, which is a crime, and shall also be subject to a civil penalty not to exceed five thousand dollars and the stated value of the claim for each such violation.",
+  FL: "Any person who knowingly and with intent to injure, defraud, or deceive any insurer files a statement of claim or an application containing any false, incomplete, or misleading information is guilty of a felony of the third degree.",
+  NJ: "Any person who includes any false or misleading information on an application for an insurance policy is subject to criminal and civil penalties.",
+  PA: "Any person who knowingly and with intent to defraud any insurance company or other person files an application for insurance or statement of claim containing any materially false information or conceals for the purpose of misleading, information concerning any fact material thereto commits a fraudulent insurance act, which is a crime and subjects such person to criminal and civil penalties.",
+  KY: "Any person who knowingly and with intent to defraud any insurance company or other person files a statement of claim containing any materially false information or conceals, for the purpose of misleading, information concerning any fact material thereto commits a fraudulent insurance act, which is a crime.",
+  CO: "It is unlawful to knowingly provide false, incomplete, or misleading facts or information to an insurance company for the purpose of defrauding or attempting to defraud the company. Penalties may include imprisonment, fines, denial of insurance, and civil damages.",
+  VA: "It is a crime to knowingly provide false, incomplete, or misleading information to an insurance company for the purpose of defrauding the company. Penalties include imprisonment, fines, and denial of insurance benefits.",
+  OH: "Any person who, with intent to defraud or knowing that he is facilitating a fraud against an insurer, submits an application or files a claim containing a false or deceptive statement is guilty of insurance fraud.",
+  OK: "WARNING: Any person who knowingly, and with intent to injure, defraud or deceive any insurer, makes any claim for the proceeds of an insurance policy containing any false, incomplete or misleading information is guilty of a felony.",
+  TX: "Any person who knowingly presents a false or fraudulent claim for the payment of a loss is guilty of a crime and may be subject to fines and confinement in state prison.",
+};
+
+export const STANDARD_FRAUD_DISCLAIMER = "Any person who knowingly presents a false or fraudulent claim for payment of a loss or benefit, or who knowingly presents false information in an application for insurance, is guilty of a crime and may be subject to fines and confinement in prison.";
+
+export const ALTERNATE_PARTS_DISCLAIMER = "This estimate may include the use of aftermarket (non-OEM) or recycled (LKQ) replacement parts. These parts may not be manufactured by the original equipment manufacturer but are designed to function similarly. You have the right to request OEM parts; however, the cost difference may not be covered by your insurance policy. Aftermarket parts, if used, are identified on this estimate.";
+
+// --- Diagnostic/ADAS flat rates (common sublet items) ---
+export const DIAGNOSTIC_FLAT_RATES = {
+  pre_repair_scan:    { low: 30, high: 75, label: "Pre-repair diagnostic scan" },
+  post_repair_scan:   { low: 30, high: 75, label: "Post-repair diagnostic scan" },
+  adas_calibration:   { low: 200, high: 600, label: "ADAS calibration (per system)" },
+  four_wheel_align:   { low: 80, high: 175, label: "4-wheel alignment" },
+};
+
 // --- Vehicle classification ---
 const VEHICLE_CLASS_MAP = {
   economy: ["Kia", "Hyundai", "Nissan", "Mitsubishi", "MINI", "Fiat", "smart"],
@@ -555,10 +609,19 @@ export function buildPricingContext(type, options) {
       ? "[Live pricing from Google Search]"
       : `[Reference pricing database, last updated ${PRICING_LAST_UPDATED}]`;
 
+    const bodyRate = options.freshPricing?.labor_rate_per_hour || state.autoLaborRate;
+    const taxRate = STATE_SALES_TAX[stateCode] || 0;
+    const taxPct = (taxRate * 100).toFixed(2);
+
     let lines = [
       `\n--- PRICING REFERENCE DATA (${state.label}, ${clsLabel} class) ${sourceLabel} ---`,
-      `State avg body shop labor rate: $${options.freshPricing?.labor_rate_per_hour || state.autoLaborRate}/hr`,
+      `LABOR RATES (${state.label}):`,
+      `  Body: $${bodyRate}/hr | Paint: $${bodyRate}/hr | Frame: $${bodyRate}/hr | Mechanical: $${bodyRate}/hr`,
+      `  Diagnostic/ADAS: $${Math.round(bodyRate * LABOR_RATE_CATEGORIES.diagnostic.multiplier)}/hr | Aluminum: $${Math.round(bodyRate * LABOR_RATE_CATEGORIES.aluminum.multiplier)}/hr`,
+      `Parts tax rate (${state.label}): ${taxRate > 0 ? taxPct + '%' : 'No state sales tax'}`,
       `Vehicle class: ${clsLabel}`,
+      ``,
+      `PART TYPES: OEM (original), AFT (aftermarket), LKQ (recycled/used), REMAN (remanufactured), RECON (reconditioned)`,
       ``,
       `Component costs (parts+labor, USD):`,
       `Component | Repair Range | Replace Range | Labor Hours`,

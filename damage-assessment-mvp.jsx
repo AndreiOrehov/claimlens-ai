@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing } from "./pricing-db.js";
+import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER } from "./pricing-db.js";
 
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
@@ -1433,13 +1433,13 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
       "description": "What happened — describe SPECIFIC visual evidence",
       "severity": "minor|moderate|severe",
       "part_info": {
-        "type": "OEM|AFT|LKQ|null",
+        "type": "OEM|AFT|LKQ|REMAN|RECON|null",
         "price": number_or_null,
         "oem_price": number_or_null,
         "number": "OEM part number if known, else null"
       },
       "labor": {
-        "type": "body|mechanical|frame|paint",
+        "type": "body|mechanical|frame|structural|paint|diagnostic|aluminum|glass",
         "hours": number,
         "rate": number
       },
@@ -1458,13 +1458,20 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
     "body_labor_amount": number,
     "mechanical_labor_hours": number,
     "mechanical_labor_amount": number,
+    "structural_labor_hours": number,
+    "structural_labor_amount": number,
+    "diagnostic_labor_hours": number,
+    "diagnostic_labor_amount": number,
     "paint_labor_hours": number,
     "paint_labor_amount": number,
     "paint_materials": number,
     "parts_total": number,
     "parts_oem_total": number,
     "sublet_total": number,
-    "gross_total": number
+    "parts_tax_rate": number_or_null,
+    "parts_tax_amount": number_or_null,
+    "gross_total": number,
+    "net_total": number
   },
   "potential_damages": [
     {
@@ -1497,10 +1504,12 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
 MITCHELL-STYLE ESTIMATE RULES (for auto claims):
 1. Each line item represents ONE operation on ONE component. If a fender needs R&R + Refinish, create TWO line items.
 2. Operation types: R&R (remove & replace with new part), R&I (remove & reinstall same part for access), Repair (fix in place — straighten, fill, weld), Refinish (sand, prime, basecoat, clearcoat), Blend (partial refinish of adjacent undamaged panel for color match), Sublet (outsourced: alignment, ADAS calibration, A/C recharge, tow).
-3. Parts: Use AFT (aftermarket) as default type when available (insurer standard). Include oem_price for reference. Use OEM only when no aftermarket exists (e.g. structural parts, glass, electronics). Use LKQ for older vehicles when recycled parts are practical.
-4. Labor hours: ALWAYS a single number (e.g. 2.5), NEVER a range. Use standard estimating guide hours. Labor types: body ($50-75/hr), mechanical ($55-80/hr), frame ($60-85/hr), paint ($50-75/hr). Use the region's actual rate from PRICING REFERENCE DATA.
+3. Part types: AFT (aftermarket, default when available — insurer standard), OEM (original manufacturer — use when no AFT exists: structural parts, glass, electronics), LKQ (recycled/used — for older vehicles), REMAN (remanufactured — rebuilt to OEM spec: alternators, transmissions, engines), RECON (reconditioned — repaired used part: wheels, bumper reinforcements). Include oem_price for reference.
+4. Labor hours: ALWAYS a single number (e.g. 2.5), NEVER a range. Use standard estimating guide hours. Labor types: body, mechanical, frame, structural (frame pulling/measuring), paint, diagnostic (pre/post scans, ADAS calibration), aluminum (certified aluminum repair — 1.5x body rate), glass. Use the region's actual rates from PRICING REFERENCE DATA.
 5. Paint/Refinish: ONLY for exterior body panels (bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof). Create separate Refinish line items. Add Blend line items for adjacent undamaged panels. Paint materials = paint_hours × $32-40/hr material rate. NOT for: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts, mechanical parts.
-6. estimated_cost per line = part_price + (labor.hours × labor.rate) + (paint.hours × paint.rate) + paint.materials + sublet. Double-check arithmetic.
+6. Tax: parts_tax_rate and parts_tax_amount in estimate_summary. Tax applies to PARTS ONLY (not labor). Use the state's actual tax rate from PRICING REFERENCE DATA. net_total = gross_total + parts_tax_amount.
+7. estimated_cost per line = part_price + (labor.hours × labor.rate) + (paint.hours × paint.rate) + paint.materials + sublet. Double-check arithmetic.
+8. Sublet items (outsourced): pre/post repair scans ($30-75 each), ADAS calibration ($200-600 per system), 4-wheel alignment ($80-175), A/C recharge, tow.
 7. estimate_summary: sum all labor by type, all parts, all paint materials, all sublet into the summary object. gross_total = sum of everything.
 8. total_estimate = estimate_summary.gross_total (single number, not a range).
 9. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence.
@@ -1664,17 +1673,23 @@ GENERAL ACCURACY RULES:
           mergedEstimateSummary = {
             body_labor_hours: 0, body_labor_amount: 0,
             mechanical_labor_hours: 0, mechanical_labor_amount: 0,
+            structural_labor_hours: 0, structural_labor_amount: 0,
+            diagnostic_labor_hours: 0, diagnostic_labor_amount: 0,
             paint_labor_hours: 0, paint_labor_amount: 0,
             paint_materials: 0, parts_total: 0, parts_oem_total: 0,
-            sublet_total: 0, gross_total: totalEstimate,
+            sublet_total: 0, parts_tax_rate: 0, parts_tax_amount: 0,
+            gross_total: totalEstimate, net_total: totalEstimate,
           };
           for (const d of mergedDamages) {
             if (d.labor) {
               const hrs = d.labor.hours || 0;
               const amt = hrs * (d.labor.rate || 0);
-              if (d.labor.type === "body") { mergedEstimateSummary.body_labor_hours += hrs; mergedEstimateSummary.body_labor_amount += amt; }
-              else if (d.labor.type === "mechanical") { mergedEstimateSummary.mechanical_labor_hours += hrs; mergedEstimateSummary.mechanical_labor_amount += amt; }
-              else if (d.labor.type === "paint" || d.labor.type === "frame") { mergedEstimateSummary.paint_labor_hours += hrs; mergedEstimateSummary.paint_labor_amount += amt; }
+              const lt = d.labor.type || "body";
+              if (lt === "body") { mergedEstimateSummary.body_labor_hours += hrs; mergedEstimateSummary.body_labor_amount += amt; }
+              else if (lt === "mechanical") { mergedEstimateSummary.mechanical_labor_hours += hrs; mergedEstimateSummary.mechanical_labor_amount += amt; }
+              else if (lt === "structural" || lt === "frame") { mergedEstimateSummary.structural_labor_hours += hrs; mergedEstimateSummary.structural_labor_amount += amt; }
+              else if (lt === "diagnostic" || lt === "aluminum" || lt === "glass") { mergedEstimateSummary.diagnostic_labor_hours += hrs; mergedEstimateSummary.diagnostic_labor_amount += amt; }
+              else if (lt === "paint") { mergedEstimateSummary.paint_labor_hours += hrs; mergedEstimateSummary.paint_labor_amount += amt; }
             }
             if (d.paint) {
               mergedEstimateSummary.paint_labor_hours += d.paint.hours || 0;
@@ -1687,13 +1702,21 @@ GENERAL ACCURACY RULES:
             }
             mergedEstimateSummary.sublet_total += d.sublet || 0;
           }
+          // Compute parts tax based on state
+          const taxRate = STATE_SALES_TAX[claimState] || 0;
+          mergedEstimateSummary.parts_tax_rate = taxRate;
+          mergedEstimateSummary.parts_tax_amount = Math.round(mergedEstimateSummary.parts_total * taxRate * 100) / 100;
+          mergedEstimateSummary.net_total = Math.round((totalEstimate + mergedEstimateSummary.parts_tax_amount) * 100) / 100;
           // Round all values
           for (const k of Object.keys(mergedEstimateSummary)) {
-            mergedEstimateSummary[k] = Math.round(mergedEstimateSummary[k] * 100) / 100;
+            if (typeof mergedEstimateSummary[k] === "number") mergedEstimateSummary[k] = Math.round(mergedEstimateSummary[k] * 100) / 100;
           }
-          // Use AI's estimate_summary if available (more accurate grouping)
+          // Use AI's estimate_summary if available (more accurate grouping), but keep our tax calc
           const aiSummary = assessments.find(a => a.estimate_summary)?.estimate_summary;
-          if (aiSummary) mergedEstimateSummary = { ...mergedEstimateSummary, ...aiSummary, gross_total: totalEstimate };
+          if (aiSummary) {
+            const savedTax = { parts_tax_rate: mergedEstimateSummary.parts_tax_rate, parts_tax_amount: mergedEstimateSummary.parts_tax_amount };
+            mergedEstimateSummary = { ...mergedEstimateSummary, ...aiSummary, ...savedTax, gross_total: totalEstimate, net_total: Math.round((totalEstimate + savedTax.parts_tax_amount) * 100) / 100 };
+          }
         }
 
         // Pick most common severity/repair_vs_replace
@@ -2334,11 +2357,18 @@ function ReportView({ claim, onBack, isPro = false }) {
       report += `ESTIMATE SUMMARY\n${"-".repeat(30)}\n`;
       if (a.estimate_summary.body_labor_hours > 0) report += `Body Labor: ${a.estimate_summary.body_labor_hours} hrs = $${a.estimate_summary.body_labor_amount?.toLocaleString()}\n`;
       if (a.estimate_summary.mechanical_labor_hours > 0) report += `Mechanical Labor: ${a.estimate_summary.mechanical_labor_hours} hrs = $${a.estimate_summary.mechanical_labor_amount?.toLocaleString()}\n`;
+      if (a.estimate_summary.structural_labor_hours > 0) report += `Structural/Frame Labor: ${a.estimate_summary.structural_labor_hours} hrs = $${a.estimate_summary.structural_labor_amount?.toLocaleString()}\n`;
+      if (a.estimate_summary.diagnostic_labor_hours > 0) report += `Diagnostic/ADAS: ${a.estimate_summary.diagnostic_labor_hours} hrs = $${a.estimate_summary.diagnostic_labor_amount?.toLocaleString()}\n`;
       if (a.estimate_summary.paint_labor_hours > 0) report += `Paint Labor: ${a.estimate_summary.paint_labor_hours} hrs = $${a.estimate_summary.paint_labor_amount?.toLocaleString()}\n`;
       if (a.estimate_summary.paint_materials > 0) report += `Paint Materials: $${a.estimate_summary.paint_materials?.toLocaleString()}\n`;
       if (a.estimate_summary.parts_total > 0) report += `Parts Total: $${a.estimate_summary.parts_total?.toLocaleString()}\n`;
       if (a.estimate_summary.sublet_total > 0) report += `Sublet: $${a.estimate_summary.sublet_total?.toLocaleString()}\n`;
-      report += `GROSS TOTAL: $${a.estimate_summary.gross_total?.toLocaleString()}\n\n`;
+      report += `GROSS TOTAL: $${a.estimate_summary.gross_total?.toLocaleString()}\n`;
+      if (a.estimate_summary.parts_tax_amount > 0) {
+        report += `Parts Tax (${(a.estimate_summary.parts_tax_rate * 100).toFixed(1)}%): $${a.estimate_summary.parts_tax_amount?.toLocaleString()}\n`;
+        report += `NET TOTAL (incl. tax): $${a.estimate_summary.net_total?.toLocaleString()}\n`;
+      }
+      report += "\n";
     }
     if (a.recommendations?.length) {
       report += `RECOMMENDATIONS\n${"-".repeat(30)}\n`;
@@ -2352,6 +2382,11 @@ function ReportView({ claim, onBack, isPro = false }) {
       report += `\nADJUSTER INSPECTION CHECKLIST\n${"-".repeat(30)}\n`;
       a.adjuster_checklist.forEach((item, i) => { report += `☐ ${i + 1}. ${item}\n`; });
     }
+    if (claim.type === "auto" && a.damages?.some(d => d.part_info?.type && d.part_info.type !== "OEM")) {
+      report += `\nALTERNATE PARTS NOTICE\n${"-".repeat(30)}\n${ALTERNATE_PARTS_DISCLAIMER}\n`;
+    }
+    report += `\nFRAUD WARNING${claim.state ? ` (${claim.state})` : ""}\n${"-".repeat(30)}\n`;
+    report += `${claim.state && STATE_FRAUD_WARNINGS[claim.state] ? STATE_FRAUD_WARNINGS[claim.state] : STANDARD_FRAUD_DISCLAIMER}\n`;
     report += `\n${"=".repeat(50)}\n`;
     report += `DISCLAIMER: This is a preliminary AI-generated estimate.\nFinal assessment must be conducted by a licensed adjuster.\n`;
     return report;
@@ -2414,7 +2449,7 @@ function ReportView({ claim, onBack, isPro = false }) {
     } else {
       // Auto: Mitchell-style rows
       const opColorMap = { "R&R": "#2563EB", "R&I": "#7C3AED", "Repair": "#059669", "Refinish": "#D97706", "Blend": "#8B5CF6", "Sublet": "#DC2626" };
-      const ptColorMap = { "OEM": "#2563EB", "AFT": "#059669", "LKQ": "#D97706" };
+      const ptColorMap = { "OEM": "#2563EB", "AFT": "#059669", "LKQ": "#D97706", "REMAN": "#7C3AED", "RECON": "#8B5CF6" };
       damageRows = (a.damages || []).map((d, i) => {
         const dc = sevColorMap[d.severity] || "#F59E0B";
         const opC = opColorMap[d.operation] || "#6B7280";
@@ -2583,18 +2618,22 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
   <div class="estimate">
     <div class="estimate-label">Estimated Total Repair Cost</div>
     <div class="estimate-value">${a.total_estimate != null ? `$${a.total_estimate.toLocaleString()}` : `$${(a.total_estimate_low || 0).toLocaleString()} — $${(a.total_estimate_high || 0).toLocaleString()}`}</div>
-    <div style="font-size:9px;color:#6B7280;margin-top:4px;text-align:center;">${a.total_estimate != null ? "Mitchell-style estimate" : "Low estimate → High estimate"}</div>
+    <div style="font-size:9px;color:#6B7280;margin-top:4px;text-align:center;">${a.total_estimate != null ? "Gross estimate before tax & deductible" : "Low estimate → High estimate"}</div>
   </div>
   ${a.estimate_summary ? `
   <div style="margin-bottom:18px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;">
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748B;margin-bottom:6px;">Estimate Summary</div>
     ${a.estimate_summary.body_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Body Labor (${a.estimate_summary.body_labor_hours} hrs)</span><span>$${a.estimate_summary.body_labor_amount?.toLocaleString()}</span></div>` : ""}
     ${a.estimate_summary.mechanical_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Mechanical Labor (${a.estimate_summary.mechanical_labor_hours} hrs)</span><span>$${a.estimate_summary.mechanical_labor_amount?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.structural_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Structural/Frame Labor (${a.estimate_summary.structural_labor_hours} hrs)</span><span>$${a.estimate_summary.structural_labor_amount?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.diagnostic_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Diagnostic/ADAS (${a.estimate_summary.diagnostic_labor_hours} hrs)</span><span>$${a.estimate_summary.diagnostic_labor_amount?.toLocaleString()}</span></div>` : ""}
     ${a.estimate_summary.paint_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Paint Labor (${a.estimate_summary.paint_labor_hours} hrs)</span><span>$${a.estimate_summary.paint_labor_amount?.toLocaleString()}</span></div>` : ""}
     ${a.estimate_summary.paint_materials > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Paint Materials</span><span>$${a.estimate_summary.paint_materials?.toLocaleString()}</span></div>` : ""}
     ${a.estimate_summary.parts_total > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Parts Total</span><span>$${a.estimate_summary.parts_total?.toLocaleString()}</span></div>` : ""}
     ${a.estimate_summary.sublet_total > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Sublet</span><span>$${a.estimate_summary.sublet_total?.toLocaleString()}</span></div>` : ""}
     <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0F172A;border-top:2px solid #CBD5E1;padding-top:6px;margin-top:4px;"><span>Gross Total</span><span>$${a.estimate_summary.gross_total?.toLocaleString()}</span></div>
+    ${a.estimate_summary.parts_tax_amount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-top:3px;"><span>Parts Tax (${(a.estimate_summary.parts_tax_rate * 100).toFixed(1)}%)</span><span>$${a.estimate_summary.parts_tax_amount?.toLocaleString()}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#2563EB;margin-top:4px;"><span>Net Total (incl. tax)</span><span>$${a.estimate_summary.net_total?.toLocaleString()}</span></div>` : ""}
   </div>` : ""}
 
   ${claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis ? `
@@ -2687,6 +2726,15 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
       `).join("")}
     </div>
   </div>` : ""}
+
+  ${claim.type === "auto" && (a.damages || []).some(d => d.part_info?.type && d.part_info.type !== "OEM") ? `
+  <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:12px 14px;margin-top:16px;">
+    <p style="font-size:9.5px;color:#1E40AF;line-height:1.6;margin:0;"><strong>Alternate Parts Notice:</strong> ${ALTERNATE_PARTS_DISCLAIMER}</p>
+  </div>` : ""}
+
+  <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:12px 14px;margin-top:10px;">
+    <p style="font-size:9px;color:#991B1B;line-height:1.6;margin:0;"><strong>Fraud Warning${claim.state ? ` (${claim.state})` : ""}:</strong> ${claim.state && STATE_FRAUD_WARNINGS[claim.state] ? STATE_FRAUD_WARNINGS[claim.state] : STANDARD_FRAUD_DISCLAIMER}</p>
+  </div>
 
   <div class="disclaimer">
     <p><strong>Disclaimer:</strong> This is a preliminary AI-generated estimate for informational purposes only. It does not constitute a binding assessment, appraisal, or guarantee of repair costs. A licensed insurance adjuster must conduct the final evaluation. ClaimPilot AI assumes no liability for decisions made based on this report. Actual repair costs may vary based on parts availability, labor rates, and hidden damage discovered during repair.</p>
@@ -2851,7 +2899,7 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                 : `$${a.total_estimate_low?.toLocaleString()} — $${a.total_estimate_high?.toLocaleString()}`}
             </div>
             {claim.type === "auto" && a.total_estimate != null && (
-              <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Mitchell-style estimate</div>
+              <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Gross estimate before tax & deductible</div>
             )}
             {claim.type !== "auto" && (
               <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Low estimate → High estimate</div>
@@ -3098,7 +3146,7 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
             {a.damages?.map((d, i) => {
               const ds = severityConfig[d.severity] || severityConfig.moderate;
               const opColors = { "R&R": "#2563EB", "R&I": "#7C3AED", "Repair": "#059669", "Refinish": "#D97706", "Blend": "#8B5CF6", "Sublet": "#DC2626" };
-              const partTypeColors = { "OEM": "#2563EB", "AFT": "#059669", "LKQ": "#D97706" };
+              const partTypeColors = { "OEM": "#2563EB", "AFT": "#059669", "LKQ": "#D97706", "REMAN": "#7C3AED", "RECON": "#8B5CF6" };
               return (
                 <div key={i} style={{
                   padding: 14, borderRadius: 10, background: palette.surfaceAlt,
@@ -3213,6 +3261,18 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                       <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.mechanical_labor_amount?.toLocaleString()}</span>
                     </div>
                   )}
+                  {a.estimate_summary.structural_labor_hours > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Structural/Frame Labor ({a.estimate_summary.structural_labor_hours} hrs)</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.structural_labor_amount?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.diagnostic_labor_hours > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Diagnostic/ADAS ({a.estimate_summary.diagnostic_labor_hours} hrs)</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.diagnostic_labor_amount?.toLocaleString()}</span>
+                    </div>
+                  )}
                   {a.estimate_summary.paint_labor_hours > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
                       <span>Paint Labor ({a.estimate_summary.paint_labor_hours} hrs)</span>
@@ -3241,6 +3301,18 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                     <span>Gross Total</span>
                     <span>${a.estimate_summary.gross_total?.toLocaleString()}</span>
                   </div>
+                  {a.estimate_summary.parts_tax_amount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted, marginTop: 4 }}>
+                      <span>Parts Tax ({(a.estimate_summary.parts_tax_rate * 100).toFixed(1)}%)</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.parts_tax_amount?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.net_total > 0 && a.estimate_summary.parts_tax_amount > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: palette.accent, marginTop: 4 }}>
+                      <span>Net Total (incl. tax)</span>
+                      <span>${a.estimate_summary.net_total?.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3408,6 +3480,39 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Alternate Parts Disclaimer — shown when non-OEM parts are used */}
+      {claim.type === "auto" && a.damages?.some(d => d.part_info?.type && d.part_info.type !== "OEM") && (
+        <div style={{
+          padding: 14, borderRadius: 10, background: `${palette.accent}08`,
+          border: `1px solid ${palette.accent}25`, marginBottom: 12,
+          display: "flex", alignItems: "flex-start", gap: 8,
+        }}>
+          <span style={{ color: palette.accent, marginTop: 1, flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </span>
+          <p style={{ fontSize: 11, color: palette.textMuted, margin: 0, lineHeight: 1.6 }}>
+            <strong style={{ color: palette.text }}>Alternate Parts Notice:</strong> {ALTERNATE_PARTS_DISCLAIMER}
+          </p>
+        </div>
+      )}
+
+      {/* Fraud Warning — state-specific or standard */}
+      {claim.state && (
+        <div style={{
+          padding: 14, borderRadius: 10, background: `${palette.danger}08`,
+          border: `1px solid ${palette.danger}20`, marginBottom: 12,
+          display: "flex", alignItems: "flex-start", gap: 8,
+        }}>
+          <span style={{ color: palette.danger, marginTop: 1, flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </span>
+          <p style={{ fontSize: 10, color: palette.textDim, margin: 0, lineHeight: 1.6 }}>
+            <strong style={{ color: palette.textMuted }}>Fraud Warning ({claim.state}):</strong>{" "}
+            {STATE_FRAUD_WARNINGS[claim.state] || STANDARD_FRAUD_DISCLAIMER}
+          </p>
         </div>
       )}
 
