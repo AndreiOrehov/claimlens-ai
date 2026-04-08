@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER } from "./pricing-db.js";
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
+import { PARTS_CATALOG_PROMPT } from "./parts-catalog.js";
 
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
@@ -1605,6 +1606,9 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
   "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
 }`}
+
+STANDARDIZED PARTS CATALOG — You MUST use component names from this list. Do NOT invent names. Pick the closest match. Add "LH" (left) or "RH" (right) suffix for sided parts.
+${PARTS_CATALOG_PROMPT}
 
 MITCHELL-STYLE ESTIMATE RULES (for auto claims):
 1. Each line item represents ONE operation on ONE component. If a fender needs R&R + Refinish, create TWO line items.
