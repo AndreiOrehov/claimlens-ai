@@ -1283,6 +1283,9 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}`;
         // Parse OEM/aftermarket price lookups (merge 3 parallel text responses)
         try {
           const prices = {};
+          [priceRes1, priceRes2, priceRes3].forEach((text, i) => {
+            if (text) console.log(`Price response ${i + 1} raw:`, text.substring(0, 300));
+          });
           for (const text of [priceRes1, priceRes2, priceRes3]) {
             try {
               if (!text) continue;
@@ -1291,7 +1294,7 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}`;
               for (const [k, v] of Object.entries(rawPrices)) {
                 prices[k] = { oem: v.oem || v.o || null, aftermarket: v.aftermarket || v.a || null };
               }
-            } catch { /* skip failed chunk */ }
+            } catch (e) { console.warn(`Price parse failed:`, e.message); }
           }
           if (Object.keys(prices).length > 0) {
             modelPricingContext = `\nMODEL-SPECIFIC OEM/AFTERMARKET PRICES for ${vYear} ${vMake} ${vModel} (use these as primary price reference):\n${JSON.stringify(prices, null, 2)}\n`;
