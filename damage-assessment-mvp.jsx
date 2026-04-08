@@ -1292,6 +1292,7 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}`;
               const cleanJson = text.replace(/```json\n?|```\n?/g, "").trim();
               const rawPrices = JSON.parse(cleanJson);
               for (const [k, v] of Object.entries(rawPrices)) {
+                if (!v || typeof v !== "object") continue; // skip null/invalid entries
                 prices[k] = { oem: v.oem || v.o || null, aftermarket: v.aftermarket || v.a || null };
               }
             } catch (e) { console.warn(`Price parse failed:`, e.message); }
