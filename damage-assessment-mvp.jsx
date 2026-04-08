@@ -1068,17 +1068,19 @@ function NewClaimView({ onSubmit, initialType }) {
       const freshData = await fetchFreshPricing(type, pricingOptions);
       const mergedPricing = mergePricing(freshData, type, pricingOptions);
 
-      // --- Gemini pre-lookup: model-specific OEM prices ---
+      // --- Gemini pre-lookup: model-specific OEM prices + ACV ---
       let modelPricingContext = "";
+      let acvContext = "";
+      let acvData = null; // { low, high, mileage_factor }
       if (type === "auto" && vMake && vModel && vYear) {
-        try {
-          const priceLookupRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: `For a ${vYear} ${vMake} ${vModel}, provide realistic OEM and aftermarket parts prices in USD. Return ONLY a JSON object, no markdown:
+        // Run both lookups in parallel
+        const pricePromise = fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `For a ${vYear} ${vMake} ${vModel}, provide realistic OEM and aftermarket parts prices in USD. Return ONLY a JSON object, no markdown:
 {
   "front_bumper": { "oem": [low, high], "aftermarket": [low, high] },
   "rear_bumper": { "oem": [low, high], "aftermarket": [low, high] },
@@ -1099,20 +1101,62 @@ function NewClaimView({ onSubmit, initialType }) {
   "ac_condenser": { "oem": [low, high], "aftermarket": [low, high] }
 }
 Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-party compatible parts. If aftermarket not available, use null.` }] }],
-                generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-              }),
-            }
-          );
-          if (priceLookupRes.ok) {
+              generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+            }),
+          }
+        ).catch(() => null);
+
+        const acvPromise = fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${US_STATES.find(s=>s.code===claimState)?.name || claimState}` : ""}?
+
+Return ONLY a JSON object, no markdown:
+{
+  "acv_low": number,
+  "acv_high": number,
+  "acv_mid": number,
+  "condition_assumed": "good|fair|excellent",
+  "mileage_adjustment": "Description of how mileage affects value",
+  "source_basis": "Brief note on what this estimate is based on (e.g. KBB, Edmunds, NADA ranges)"
+}
+
+Consider: year/make/model, typical depreciation, current used car market prices, condition, and mileage. ACV = what the vehicle was worth BEFORE the accident (fair market value for a comparable vehicle in similar condition). Be realistic — use actual market data.` }] }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+            }),
+          }
+        ).catch(() => null);
+
+        const [priceLookupRes, acvLookupRes] = await Promise.all([pricePromise, acvPromise]);
+
+        // Parse price lookup
+        try {
+          if (priceLookupRes?.ok) {
             const priceLookupData = await priceLookupRes.json();
             const priceText = priceLookupData.candidates?.[0]?.content?.parts?.[0]?.text || "";
             const cleanJson = priceText.replace(/```json\n?|```\n?/g, "").trim();
             try {
               const prices = JSON.parse(cleanJson);
               modelPricingContext = `\nMODEL-SPECIFIC OEM/AFTERMARKET PRICES for ${vYear} ${vMake} ${vModel} (use these as primary price reference):\n${JSON.stringify(prices, null, 2)}\n`;
-            } catch { /* ignore parse errors, fall back to generic pricing */ }
+            } catch { /* ignore parse errors */ }
           }
-        } catch { /* network error, fall back to generic pricing */ }
+        } catch { /* network error */ }
+
+        // Parse ACV lookup
+        try {
+          if (acvLookupRes?.ok) {
+            const acvLookupData = await acvLookupRes.json();
+            const acvText = acvLookupData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            const cleanAcv = acvText.replace(/```json\n?|```\n?/g, "").trim();
+            try {
+              acvData = JSON.parse(cleanAcv);
+              acvContext = `\nVEHICLE ACV (Actual Cash Value): $${acvData.acv_low?.toLocaleString()} – $${acvData.acv_high?.toLocaleString()} (mid: $${acvData.acv_mid?.toLocaleString()}). Condition assumed: ${acvData.condition_assumed}. ${acvData.mileage_adjustment || ""}\nUse this ACV to determine total loss threshold: if total repair cost exceeds 70-75% of ACV, recommend total loss.\n`;
+            } catch { /* ignore parse errors */ }
+          }
+        } catch { /* network error */ }
       }
 
       const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
@@ -1188,7 +1232,7 @@ COST CALCULATION GUIDANCE (typical ranges per unit):
 - Material sales tax: varies by state (6%–10.25%)` : ""}
 ${type === "auto" && vMake ? `
 VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
-Use this information to provide accurate, model-specific repair cost estimates. Consider the vehicle's market value when assessing repair vs. replace recommendations. Factor in OEM vs aftermarket parts pricing for this specific vehicle.${modelPricingContext}` : ""}
+Use this information to provide accurate, model-specific repair cost estimates. Consider the vehicle's market value when assessing repair vs. replace recommendations. Factor in OEM vs aftermarket parts pricing for this specific vehicle.${modelPricingContext}${acvContext}` : ""}
 ${type === "property" ? `
 PROPERTY DETAILS: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || "Unknown type"}${pCause ? `. Damage cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `. Primary area affected: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `. Approximate size: ${pSqft} sq ft` : ""}${pYearBuilt ? `. Year built: ${pYearBuilt}` : ""}.
 Use this information to provide accurate repair estimates considering the property type, construction materials typical for this era, and the specific cause of damage.` : ""}
@@ -1288,6 +1332,23 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
   ],
   "total_estimate_low": number,
   "total_estimate_high": number,
+  "vehicle_acv": {
+    "low": number_or_null,
+    "high": number_or_null,
+    "mid": number_or_null,
+    "source": "Brief basis (e.g. 'Based on KBB/Edmunds/NADA typical ranges')"
+  },
+  "total_loss_analysis": {
+    "repair_to_acv_pct_low": number_or_null,
+    "repair_to_acv_pct_high": number_or_null,
+    "threshold_pct": 75,
+    "recommendation": "repair|total_loss|borderline",
+    "reasoning": "1-2 sentence explanation (e.g. 'Repair cost $X = Y% of ACV $Z, which exceeds the 75% threshold')"
+  },
+  "adjuster_checklist": [
+    "Specific inspection action based on damage found (e.g. 'Verify frame alignment on rack — front-end impact detected')",
+    "Another action item..."
+  ],
   "recommendations": ["3-5 actionable next steps, no duplicates"],
   "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
@@ -1302,7 +1363,10 @@ ACCURACY RULES:
 6. total_estimate_low and total_estimate_high should ONLY include "damages" (visually confirmed). Do NOT add potential_damages to the totals.
 7. Keep recommendations to 3-5 items. Keep flags to 3-5 items.
 8. "cost_breakdown" is REQUIRED for EACH damage item. For auto: provide parts_oem (OEM price), parts_aftermarket (aftermarket/used price), labor_hours_low/high, labor_rate ($/hr for region), paint_materials (ONLY for exterior body panels that require painting — bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof. Set to null for everything else: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts (dashboard, seats, steering wheel, headliner, console, airbags), wiring, mechanical parts — these are all replaced, never painted). For property: provide materials_standard (builder grade), materials_premium (higher grade), labor_hours_low/high, labor_rate. Always include "notes" explaining what drives the range.
-9. CRITICAL MATH RULE: estimated_cost_low and estimated_cost_high MUST be calculated FROM cost_breakdown, NOT independently. For auto: low = parts_aftermarket + (labor_hours_low × labor_rate) + paint_materials (if applicable, else 0); high = parts_oem + (labor_hours_high × labor_rate) + paint_materials (if applicable, else 0). For property: low = materials_standard + (labor_hours_low × labor_rate); high = materials_premium + (labor_hours_high × labor_rate). Double-check arithmetic before returning.`;
+9. CRITICAL MATH RULE: estimated_cost_low and estimated_cost_high MUST be calculated FROM cost_breakdown, NOT independently. For auto: low = parts_aftermarket + (labor_hours_low × labor_rate) + paint_materials (if applicable, else 0); high = parts_oem + (labor_hours_high × labor_rate) + paint_materials (if applicable, else 0). For property: low = materials_standard + (labor_hours_low × labor_rate); high = materials_premium + (labor_hours_high × labor_rate). Double-check arithmetic before returning.
+10. "vehicle_acv": If ACV data was provided above, use it. If not, estimate based on year/make/model/mileage. Set all to null ONLY if you truly cannot estimate (e.g. unknown vehicle). ACV = pre-accident fair market value.
+11. "total_loss_analysis": Calculate repair_to_acv_pct_low = (total_estimate_low / vehicle_acv.mid) × 100, repair_to_acv_pct_high = (total_estimate_high / vehicle_acv.mid) × 100. If high % > 75%, recommend "total_loss". If low % < 75% but high % > 60%, recommend "borderline". Otherwise "repair". Explain your reasoning.
+12. "adjuster_checklist": Generate 5-10 SPECIFIC inspection actions that an adjuster should perform based on the damage found. These must be tied to actual damage detected — NOT generic. Examples: "Check frame rail alignment — front bumper impact detected", "Inspect airbag deployment sensors — dashboard damage present", "Verify AC system charge — condenser area impacted", "Pull paint thickness readings on left quarter panel — possible prior repair". Each item should reference the specific damage that triggered it.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
@@ -1471,6 +1535,35 @@ ACCURACY RULES:
         const potentialTotalLow = potentialDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
         const potentialTotalHigh = potentialDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
 
+        // Merge vehicle_acv — average across runs that have it
+        const acvRuns = assessments.filter(a => a.vehicle_acv?.mid);
+        let mergedAcv = null;
+        if (acvRuns.length > 0) {
+          mergedAcv = {
+            low: Math.round(acvRuns.reduce((s, a) => s + (a.vehicle_acv.low || 0), 0) / acvRuns.length),
+            high: Math.round(acvRuns.reduce((s, a) => s + (a.vehicle_acv.high || 0), 0) / acvRuns.length),
+            mid: Math.round(acvRuns.reduce((s, a) => s + (a.vehicle_acv.mid || 0), 0) / acvRuns.length),
+            source: acvRuns[0].vehicle_acv.source || "",
+          };
+        }
+
+        // Merge total_loss_analysis — recalculate from merged totals + merged ACV
+        let mergedTotalLoss = null;
+        if (mergedAcv?.mid) {
+          const pctLow = Math.round((totalLow / mergedAcv.mid) * 100);
+          const pctHigh = Math.round((totalHigh / mergedAcv.mid) * 100);
+          const rec = pctHigh > 75 ? "total_loss" : pctLow > 60 ? "borderline" : "repair";
+          const reasoning = rec === "total_loss"
+            ? `Repair cost $${totalLow.toLocaleString()}–$${totalHigh.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${mergedAcv.mid.toLocaleString()}, exceeding the 75% total loss threshold`
+            : rec === "borderline"
+            ? `Repair cost $${totalLow.toLocaleString()}–$${totalHigh.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${mergedAcv.mid.toLocaleString()}, approaching total loss threshold`
+            : `Repair cost $${totalLow.toLocaleString()}–$${totalHigh.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${mergedAcv.mid.toLocaleString()}, within economic repair range`;
+          mergedTotalLoss = { repair_to_acv_pct_low: pctLow, repair_to_acv_pct_high: pctHigh, threshold_pct: 75, recommendation: rec, reasoning };
+        }
+
+        // Merge adjuster_checklist — deduplicate across runs
+        const allChecklist = fuzzyDedup(assessments.flatMap(a => a.adjuster_checklist || [])).slice(0, 10);
+
         return {
           summary: assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0].summary,
           damage_type: assessments[0].damage_type,
@@ -1479,6 +1572,9 @@ ACCURACY RULES:
           damages: mergedDamages,
           total_estimate_low: totalLow,
           total_estimate_high: totalHigh,
+          vehicle_acv: mergedAcv,
+          total_loss_analysis: mergedTotalLoss,
+          adjuster_checklist: allChecklist,
           potential_damages: potentialDamages,
           potential_total_low: potentialTotalLow,
           potential_total_high: potentialTotalHigh,
@@ -1503,6 +1599,34 @@ ACCURACY RULES:
       );
 
       setProgress(100);
+
+      // Override AI's ACV with pre-lookup data if available (more accurate)
+      if (acvData && acvData.acv_mid) {
+        assessment.vehicle_acv = {
+          low: acvData.acv_low,
+          high: acvData.acv_high,
+          mid: acvData.acv_mid,
+          source: acvData.source_basis || "Gemini pre-lookup",
+        };
+        // Recalculate total loss analysis with pre-lookup ACV
+        const tl = assessment.total_estimate_low || 0;
+        const th = assessment.total_estimate_high || 0;
+        const acvMid = acvData.acv_mid;
+        const pctLow = Math.round((tl / acvMid) * 100);
+        const pctHigh = Math.round((th / acvMid) * 100);
+        const rec = pctHigh > 75 ? "total_loss" : pctLow > 60 ? "borderline" : "repair";
+        assessment.total_loss_analysis = {
+          repair_to_acv_pct_low: pctLow,
+          repair_to_acv_pct_high: pctHigh,
+          threshold_pct: 75,
+          recommendation: rec,
+          reasoning: rec === "total_loss"
+            ? `Repair cost $${tl.toLocaleString()}–$${th.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${acvMid.toLocaleString()}, exceeding the 75% total loss threshold`
+            : rec === "borderline"
+            ? `Repair cost $${tl.toLocaleString()}–$${th.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${acvMid.toLocaleString()}, approaching total loss threshold`
+            : `Repair cost $${tl.toLocaleString()}–$${th.toLocaleString()} = ${pctLow}–${pctHigh}% of ACV $${acvMid.toLocaleString()}, within economic repair range`,
+        };
+      }
 
       const claim = {
         id: Date.now().toString(),
@@ -1898,6 +2022,12 @@ function HistoryView({ claims, onSelect }) {
                   {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   {c.location && ` · ${c.location}`}
                   {c.assessment && ` · $${c.assessment.total_estimate_low?.toLocaleString()}–$${c.assessment.total_estimate_high?.toLocaleString()}`}
+                  {c.assessment?.total_loss_analysis?.recommendation === "total_loss" && (
+                    <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: palette.dangerSoft, color: palette.danger, textTransform: "uppercase" }}>Total Loss</span>
+                  )}
+                  {c.assessment?.total_loss_analysis?.recommendation === "borderline" && (
+                    <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: palette.warningSoft, color: palette.warning, textTransform: "uppercase" }}>Borderline</span>
+                  )}
                 </div>
               </div>
               <div style={{ color: palette.textDim }}><Icons.Eye /></div>
@@ -1935,6 +2065,14 @@ function ReportView({ claim, onBack, isPro = false }) {
     report += `Confidence: ${Math.round((a.confidence || 0) * 100)}%\n\n`;
     report += `SUMMARY\n${"-".repeat(30)}\n${a.summary}\n\n`;
     report += `ESTIMATED COST: $${a.total_estimate_low?.toLocaleString()} — $${a.total_estimate_high?.toLocaleString()}\n\n`;
+    if (claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis) {
+      const tla = a.total_loss_analysis;
+      report += `TOTAL LOSS ANALYSIS\n${"-".repeat(30)}\n`;
+      report += `Vehicle ACV: $${a.vehicle_acv.low?.toLocaleString()} — $${a.vehicle_acv.high?.toLocaleString()} (mid: $${a.vehicle_acv.mid?.toLocaleString()})\n`;
+      report += `Repair/ACV Ratio: ${tla.repair_to_acv_pct_low}% — ${tla.repair_to_acv_pct_high}% (threshold: ${tla.threshold_pct}%)\n`;
+      report += `Determination: ${tla.recommendation?.toUpperCase().replace("_", " ")}\n`;
+      report += `${tla.reasoning}\n\n`;
+    }
     report += `DAMAGE DETAILS\n${"-".repeat(30)}\n`;
     a.damages?.forEach((d, i) => {
       report += `${i + 1}. ${d.component} (${d.severity})\n`;
@@ -1948,6 +2086,10 @@ function ReportView({ claim, onBack, isPro = false }) {
     if (a.flags?.length) {
       report += `\nFLAGS / CONCERNS\n${"-".repeat(30)}\n`;
       a.flags.forEach((f, i) => { report += `${i + 1}. ${f}\n`; });
+    }
+    if (claim.type === "auto" && a.adjuster_checklist?.length) {
+      report += `\nADJUSTER INSPECTION CHECKLIST\n${"-".repeat(30)}\n`;
+      a.adjuster_checklist.forEach((item, i) => { report += `☐ ${i + 1}. ${item}\n`; });
     }
     report += `\n${"=".repeat(50)}\n`;
     report += `DISCLAIMER: This is a preliminary AI-generated estimate.\nFinal assessment must be conducted by a licensed adjuster.\n`;
@@ -2173,7 +2315,36 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
   <div class="estimate">
     <div class="estimate-label">Estimated Total Repair Cost</div>
     <div class="estimate-value">$${(a.total_estimate_low || 0).toLocaleString()} — $${(a.total_estimate_high || 0).toLocaleString()}</div>
+    <div style="font-size:9px;color:#6B7280;margin-top:4px;text-align:center;">Aftermarket parts + min labor → OEM parts + max labor</div>
   </div>
+
+  ${claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis ? `
+  <div style="margin-bottom:18px;padding:14px 18px;border-radius:8px;border:1px solid ${a.total_loss_analysis.recommendation === "total_loss" ? "#FECACA" : a.total_loss_analysis.recommendation === "borderline" ? "#FDE68A" : "#A7F3D0"};background:${a.total_loss_analysis.recommendation === "total_loss" ? "#FEF2F2" : a.total_loss_analysis.recommendation === "borderline" ? "#FFFBEB" : "#F0FDF4"};">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:${a.total_loss_analysis.recommendation === "total_loss" ? "#DC2626" : a.total_loss_analysis.recommendation === "borderline" ? "#D97706" : "#059669"};">
+        ${a.total_loss_analysis.recommendation === "total_loss" ? "⚠ TOTAL LOSS DETERMINATION" : a.total_loss_analysis.recommendation === "borderline" ? "⚠ BORDERLINE — REQUIRES INSPECTION" : "✓ ECONOMIC REPAIR"}
+      </span>
+      <span style="font-size:12px;font-weight:700;color:${a.total_loss_analysis.recommendation === "total_loss" ? "#DC2626" : a.total_loss_analysis.recommendation === "borderline" ? "#D97706" : "#059669"};">
+        ${a.total_loss_analysis.repair_to_acv_pct_low}–${a.total_loss_analysis.repair_to_acv_pct_high}% of ACV
+      </span>
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:10px;">
+      <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
+        <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Repair Cost</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.total_estimate_low||0).toLocaleString()} – $${(a.total_estimate_high||0).toLocaleString()}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
+        <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Vehicle ACV</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.vehicle_acv.low||0).toLocaleString()} – $${(a.vehicle_acv.high||0).toLocaleString()}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
+        <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Threshold</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">${a.total_loss_analysis.threshold_pct}%</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:#374151;line-height:1.6;">${a.total_loss_analysis.reasoning}</div>
+    ${a.vehicle_acv.source ? `<div style="font-size:8px;color:#9CA3AF;margin-top:4px;">Source: ${a.vehicle_acv.source}</div>` : ""}
+  </div>` : ""}
 
   <div class="section">
     <div class="section-title"><span class="dot"></span> Executive Summary</div>
@@ -2221,6 +2392,21 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
   <div class="section">
     <div class="section-title"><span class="dot" style="background:#F59E0B;"></span> Flags &amp; Concerns</div>
     <ol class="flags-list">${flags}</ol>
+  </div>` : ""}
+
+  ${claim.type === "auto" && (a.adjuster_checklist||[]).length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="dot" style="background:#2563EB;"></span> Adjuster Inspection Checklist</div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      ${a.adjuster_checklist.map((item, i) => `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:7px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;">
+          <div style="min-width:20px;height:20px;border-radius:4px;border:2px solid #CBD5E1;display:flex;align-items:center;justify-content:center;background:#fff;flex-shrink:0;margin-top:1px;">
+            <span style="font-size:9px;font-weight:700;color:#64748B;">${i + 1}</span>
+          </div>
+          <span style="font-size:10px;color:#374151;line-height:1.6;">${item}</span>
+        </div>
+      `).join("")}
+    </div>
   </div>` : ""}
 
   <div class="disclaimer">
@@ -2383,6 +2569,9 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
             <div style={{ fontSize: 26, fontWeight: 700, color: palette.text, marginTop: 4, letterSpacing: "-0.02em" }}>
               ${a.total_estimate_low?.toLocaleString()} — ${a.total_estimate_high?.toLocaleString()}
             </div>
+            {claim.type === "auto" && (
+              <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Aftermarket + min labor → OEM + max labor</div>
+            )}
           </div>
           <div style={{
             padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
@@ -2393,6 +2582,61 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
             {a.repair_vs_replace?.replace("_", " ")}
           </div>
         </div>
+
+        {/* Total Loss Analysis + ACV */}
+        {claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis && (
+          <div style={{
+            marginTop: 12, padding: 14, borderRadius: 10,
+            background: a.total_loss_analysis.recommendation === "total_loss" ? palette.dangerSoft
+              : a.total_loss_analysis.recommendation === "borderline" ? palette.warningSoft : palette.successSoft,
+            border: `1px solid ${a.total_loss_analysis.recommendation === "total_loss" ? "rgba(255,90,90,0.25)"
+              : a.total_loss_analysis.recommendation === "borderline" ? "rgba(255,179,71,0.25)" : "rgba(52,211,153,0.25)"}`,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                  color: a.total_loss_analysis.recommendation === "total_loss" ? palette.danger
+                    : a.total_loss_analysis.recommendation === "borderline" ? palette.warning : palette.success,
+                }}>
+                  {a.total_loss_analysis.recommendation === "total_loss" ? "⚠ Total Loss" : a.total_loss_analysis.recommendation === "borderline" ? "⚠ Borderline" : "✓ Economic Repair"}
+                </span>
+              </div>
+              <span style={{
+                fontSize: 12, fontWeight: 700,
+                color: a.total_loss_analysis.recommendation === "total_loss" ? palette.danger
+                  : a.total_loss_analysis.recommendation === "borderline" ? palette.warning : palette.success,
+              }}>
+                {a.total_loss_analysis.repair_to_acv_pct_low}–{a.total_loss_analysis.repair_to_acv_pct_high}% of ACV
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
+              <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Repair Cost</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
+                  ${a.total_estimate_low?.toLocaleString()}–${a.total_estimate_high?.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Vehicle ACV</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
+                  ${a.vehicle_acv.low?.toLocaleString()}–${a.vehicle_acv.high?.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Threshold</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
+                  {a.total_loss_analysis.threshold_pct}%
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: palette.textMuted, lineHeight: 1.5 }}>
+              {a.total_loss_analysis.reasoning}
+            </div>
+            {a.vehicle_acv.source && (
+              <div style={{ fontSize: 9, color: palette.textDim, marginTop: 4 }}>Source: {a.vehicle_acv.source}</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Photos */}
@@ -2762,6 +3006,42 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
           </div>
         )}
       </div>
+
+      {/* Adjuster Checklist */}
+      {claim.type === "auto" && a.adjuster_checklist?.length > 0 && (
+        <div style={{
+          padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`,
+          background: palette.surface, marginBottom: 16,
+        }}>
+          <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, margin: 0, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: palette.accent }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            </span>
+            Adjuster Inspection Checklist
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 12, background: palette.accentSoft, color: palette.accent }}>
+              {a.adjuster_checklist.length} items
+            </span>
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {a.adjuster_checklist.map((item, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px",
+                borderRadius: 8, background: palette.surfaceAlt,
+                border: `1px solid ${palette.border}`,
+              }}>
+                <div style={{
+                  minWidth: 22, height: 22, borderRadius: 6, border: `2px solid ${palette.borderLight}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1,
+                  background: palette.bg, flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: palette.textDim }}>{i + 1}</span>
+                </div>
+                <span style={{ fontSize: 13, color: palette.textMuted, lineHeight: 1.5 }}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Disclaimer */}
       <div style={{
