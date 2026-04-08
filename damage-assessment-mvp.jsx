@@ -1722,11 +1722,123 @@ GENERAL ACCURACY RULES:
       });
       geminiParts.push({ text: systemPrompt + "\n\n" + userPrompt });
 
+      // Strict JSON schema for auto claims — forces Gemini to use exact field names and enum values
+      const autoResponseSchema = type === "auto" ? {
+        type: "OBJECT",
+        properties: {
+          summary: { type: "STRING" },
+          damage_type: { type: "STRING", enum: ["auto"] },
+          severity: { type: "STRING", enum: ["minor", "moderate", "severe", "total_loss"] },
+          confidence: { type: "NUMBER" },
+          damages: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                component: { type: "STRING" },
+                operation: { type: "STRING", enum: ["R&R", "R&I", "Repair", "Refinish", "Blend", "Sublet"] },
+                description: { type: "STRING" },
+                severity: { type: "STRING", enum: ["minor", "moderate", "severe"] },
+                part_info: {
+                  type: "OBJECT",
+                  properties: {
+                    type: { type: "STRING", enum: ["OEM", "AFT", "LKQ", "REMAN", "RECON"] },
+                    price: { type: "NUMBER" },
+                    oem_price: { type: "NUMBER" },
+                    number: { type: "STRING" },
+                  },
+                },
+                labor: {
+                  type: "OBJECT",
+                  properties: {
+                    type: { type: "STRING", enum: ["body", "mechanical", "frame", "structural", "paint", "diagnostic", "aluminum", "glass"] },
+                    hours: { type: "NUMBER" },
+                    rate: { type: "NUMBER" },
+                  },
+                  required: ["type", "hours", "rate"],
+                },
+                paint: {
+                  type: "OBJECT",
+                  properties: {
+                    hours: { type: "NUMBER" },
+                    rate: { type: "NUMBER" },
+                    materials: { type: "NUMBER" },
+                  },
+                },
+                sublet: { type: "NUMBER" },
+                estimated_cost: { type: "NUMBER" },
+                notes: { type: "STRING" },
+              },
+              required: ["component", "operation", "description", "severity", "estimated_cost"],
+            },
+          },
+          estimate_summary: {
+            type: "OBJECT",
+            properties: {
+              body_labor_hours: { type: "NUMBER" },
+              body_labor_amount: { type: "NUMBER" },
+              mechanical_labor_hours: { type: "NUMBER" },
+              mechanical_labor_amount: { type: "NUMBER" },
+              structural_labor_hours: { type: "NUMBER" },
+              structural_labor_amount: { type: "NUMBER" },
+              diagnostic_labor_hours: { type: "NUMBER" },
+              diagnostic_labor_amount: { type: "NUMBER" },
+              paint_labor_hours: { type: "NUMBER" },
+              paint_labor_amount: { type: "NUMBER" },
+              paint_materials: { type: "NUMBER" },
+              parts_total: { type: "NUMBER" },
+              parts_oem_total: { type: "NUMBER" },
+              sublet_total: { type: "NUMBER" },
+              parts_tax_rate: { type: "NUMBER" },
+              parts_tax_amount: { type: "NUMBER" },
+              gross_total: { type: "NUMBER" },
+              net_total: { type: "NUMBER" },
+            },
+          },
+          potential_damages: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                component: { type: "STRING" },
+                reason: { type: "STRING" },
+                estimated_cost: { type: "NUMBER" },
+              },
+            },
+          },
+          total_estimate: { type: "NUMBER" },
+          vehicle_acv: {
+            type: "OBJECT",
+            properties: {
+              low: { type: "NUMBER" },
+              high: { type: "NUMBER" },
+              mid: { type: "NUMBER" },
+              source: { type: "STRING" },
+            },
+          },
+          total_loss_analysis: {
+            type: "OBJECT",
+            properties: {
+              repair_to_acv_pct: { type: "NUMBER" },
+              threshold_pct: { type: "NUMBER" },
+              recommendation: { type: "STRING", enum: ["repair", "total_loss", "borderline"] },
+              reasoning: { type: "STRING" },
+            },
+          },
+          adjuster_checklist: { type: "ARRAY", items: { type: "STRING" } },
+          recommendations: { type: "ARRAY", items: { type: "STRING" } },
+          flags: { type: "ARRAY", items: { type: "STRING" } },
+          repair_vs_replace: { type: "STRING", enum: ["repair", "replace", "needs_inspection"] },
+        },
+        required: ["summary", "damage_type", "severity", "confidence", "damages", "total_estimate", "recommendations", "flags", "repair_vs_replace"],
+      } : null;
+
       const geminiRequestBody = JSON.stringify({
         contents: [{ parts: geminiParts }],
         generationConfig: {
           temperature: 0,
           responseMimeType: "application/json",
+          ...(autoResponseSchema ? { responseSchema: autoResponseSchema } : {}),
         },
       });
 
