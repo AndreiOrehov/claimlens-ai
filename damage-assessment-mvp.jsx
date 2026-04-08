@@ -1128,15 +1128,19 @@ function NewClaimView({ onSubmit, initialType }) {
         };
 
         // --- Run all pre-lookups in parallel ---
-        // 1. OEM/Aftermarket prices (Gemini)
-        // Compact prompt: keys list + one example, not repeated structure
-        const pricePromise = geminiTextCall({
+        // 1. OEM/Aftermarket prices (Gemini) — split into 3 small parallel requests
+        const priceGroups = [
+          "front_bumper,rear_bumper,hood,fender,door",
+          "headlight,taillight,mirror,windshield,grille",
+          "quarter_panel,trunk_tailgate,radiator,ac_condenser",
+        ];
+        const pricePromises = priceGroups.map(keys => geminiTextCall({
           contents: [{ parts: [{ text: `${vYear} ${vMake} ${vModel} parts prices USD. JSON only, no markdown.
-Keys: front_bumper,rear_bumper,hood,fender,door,headlight,taillight,mirror,windshield,grille,quarter_panel,trunk_tailgate,radiator,ac_condenser
+Keys: ${keys}
 Each: {"o":[low,high],"a":[low,high]} (o=OEM,a=aftermarket,null if N/A)
 Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 800 },
-        }).catch(() => null);
+          generationConfig: { temperature: 0, maxOutputTokens: 400 },
+        }).catch(() => null));
 
         // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
         const mcKey = import.meta.env.VITE_MARKETCHECK_API_KEY;
@@ -1156,23 +1160,25 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
           generationConfig: { temperature: 0, maxOutputTokens: 256 },
         }).catch(() => null) : Promise.resolve(null);
 
-        const [priceLookupRes, marketCheckRes, acvGeminiRes] = await Promise.all([pricePromise, marketCheckPromise, acvGeminiPromise]);
+        const [priceRes1, priceRes2, priceRes3, marketCheckRes, acvGeminiRes] = await Promise.all([...pricePromises, marketCheckPromise, acvGeminiPromise]);
 
-        // Parse OEM/aftermarket price lookup
+        // Parse OEM/aftermarket price lookups (merge 3 parallel responses)
         try {
-          if (priceLookupRes?.ok) {
-            const priceLookupData = await priceLookupRes.json();
-            const priceText = priceLookupData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            const cleanJson = priceText.replace(/```json\n?|```\n?/g, "").trim();
+          const prices = {};
+          for (const res of [priceRes1, priceRes2, priceRes3]) {
             try {
+              if (!res?.ok) continue;
+              const data = await res.json();
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              const cleanJson = text.replace(/```json\n?|```\n?/g, "").trim();
               const rawPrices = JSON.parse(cleanJson);
-              // Normalize compact keys (o→oem, a→aftermarket) if needed
-              const prices = {};
               for (const [k, v] of Object.entries(rawPrices)) {
                 prices[k] = { oem: v.oem || v.o || null, aftermarket: v.aftermarket || v.a || null };
               }
-              modelPricingContext = `\nMODEL-SPECIFIC OEM/AFTERMARKET PRICES for ${vYear} ${vMake} ${vModel} (use these as primary price reference):\n${JSON.stringify(prices, null, 2)}\n`;
-            } catch { /* ignore parse errors */ }
+            } catch { /* skip failed chunk */ }
+          }
+          if (Object.keys(prices).length > 0) {
+            modelPricingContext = `\nMODEL-SPECIFIC OEM/AFTERMARKET PRICES for ${vYear} ${vMake} ${vModel} (use these as primary price reference):\n${JSON.stringify(prices, null, 2)}\n`;
           }
         } catch { /* network error */ }
 
