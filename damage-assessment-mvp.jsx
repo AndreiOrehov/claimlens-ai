@@ -499,8 +499,8 @@ function UpgradeModal({ onClose, onActivate }) {
   const features = [
     { free: "3 analyses / month", pro: "Unlimited analyses" },
     { free: "Watermark on PDF", pro: "Clean professional PDF" },
-    { free: "Basic damage report", pro: "Xactimate-style line items" },
-    { free: "Standard AI model", pro: "Premium AI model" },
+    { free: "Full damage breakdown", pro: "Full damage breakdown" },
+    { free: "—", pro: "Batch upload (up to 10 claims)" },
     { free: "—", pro: "Priority support" },
   ];
   return (
