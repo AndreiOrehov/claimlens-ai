@@ -2053,6 +2053,35 @@ GENERAL ACCURACY RULES:
             const compName = d.component || "";
             const op = (d.operation || "").toUpperCase();
 
+            // 0. CREATE labor/paint from DB if Gemini omitted them (JSON schema makes them optional)
+            if (!d.labor && op !== "SUBLET") {
+              const dbEntry = getLaborHours(compName);
+              if (dbEntry) {
+                const dbMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * classFactor * 10) / 10;
+                d.labor = { hours: dbMid, rate: stateBodyRate, type: dbEntry.type || "body" };
+                overrideCount++;
+              } else if (op === "REPAIR") {
+                const sev = (d.severity || "moderate").toLowerCase();
+                const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
+                  : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
+                  : LABOR_TIMES.repair.moderate.hours;
+                const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
+                d.labor = { hours: repMid, rate: stateBodyRate, type: "body" };
+                overrideCount++;
+              } else {
+                d.labor = { hours: 1.0, rate: stateBodyRate, type: "body" };
+              }
+            }
+            // Create paint for exterior R&R panels that need refinish
+            const PAINTABLE = ["bumper", "fender", "hood", "door", "trunk", "quarter_panel", "rocker", "roof", "tailgate", "liftgate"];
+            if (!d.paint && (op === "R&R" || op === "R&I") && PAINTABLE.some(p => compName.toLowerCase().includes(p))) {
+              const dbPaint = getRefinishHours(compName);
+              if (dbPaint) {
+                const paintMid = Math.round(((dbPaint.hours[0] + dbPaint.hours[1]) / 2) * 10) / 10;
+                d.paint = { hours: paintMid, rate: statePaintRate, materials: Math.round(paintMid * (LABOR_TIMES.paint_materials.mid || 40)) };
+              }
+            }
+
             // 1. Override labor RATES with state database rates (deterministic)
             if (d.labor) {
               const typeMultiplier = LABOR_RATE_CATEGORIES[d.labor.type]?.multiplier || 1.0;
@@ -2069,7 +2098,6 @@ GENERAL ACCURACY RULES:
                 const dbMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * classFactor * 10) / 10;
                 d.labor.hours = dbMid;
                 d.labor.type = dbEntry.type || d.labor.type;
-                // Re-apply rate for possibly changed type
                 const typeMultiplier = LABOR_RATE_CATEGORIES[d.labor.type]?.multiplier || 1.0;
                 d.labor.rate = Math.round(stateBodyRate * typeMultiplier);
                 overrideCount++;
