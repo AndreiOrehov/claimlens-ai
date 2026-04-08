@@ -1142,9 +1142,11 @@ Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-part
         const zipCode = stateZip?.zip || "90210"; // fallback zip
 
         // MarketCheck: real market data from dealer listings
-        const marketCheckPromise = (!acvData && mcKey) ? fetch(
-          `https://api.marketcheck.com/v2/stats/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}&model=${encodeURIComponent(vModel)}&zip=${zipCode}&radius=200&stats=price,miles`
-        ).catch(() => null) : Promise.resolve(null);
+        // Use search endpoint with rows=50 to get listings, then compute stats ourselves
+        const mcTimeout = (promise, ms) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+        const marketCheckPromise = (!acvData && mcKey) ? mcTimeout(fetch(
+          `https://api.marketcheck.com/v2/search/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}&model=${encodeURIComponent(vModel)}&zip=${zipCode}&radius=300&rows=30&sort_by=distance&sort_order=asc`
+        ), 8000).catch((e) => { console.warn("MarketCheck request failed:", e.message); return null; }) : Promise.resolve(null);
 
         // Gemini fallback: only if no cache AND no MarketCheck key
         const acvGeminiPromise = (!acvData && !mcKey) ? fetch(
@@ -1188,48 +1190,61 @@ Consider: year/make/model, typical depreciation, current used car market prices,
 
         // Parse ACV — MarketCheck primary, Gemini fallback
         if (!acvData) {
-          // Try MarketCheck first
+          // Try MarketCheck first — parse search results into stats
           let mcSuccess = false;
           try {
             if (marketCheckRes?.ok) {
               const mcData = await marketCheckRes.json();
-              const priceStats = mcData.price || mcData.stats?.price;
-              const milesStats = mcData.miles || mcData.stats?.miles;
-              const count = mcData.num_found || mcData.count || priceStats?.count || 0;
-              if (priceStats && priceStats.median && count >= 3) {
-                // Mileage adjustment: if vehicle has more miles than median, reduce value proportionally
+              // Search endpoint returns { num_found, listings: [...] }
+              const listings = mcData.listings || mcData.results || [];
+              const prices = listings.map(l => l.price).filter(p => p && p > 0).sort((a, b) => a - b);
+              const miles = listings.map(l => l.miles).filter(m => m && m > 0);
+              const count = prices.length;
+              console.log(`MarketCheck: ${mcData.num_found || 0} found, ${count} with prices`, prices.slice(0, 5));
+
+              if (count >= 3) {
+                // Calculate stats from listings
+                const median = prices[Math.floor(count / 2)];
+                const mean = Math.round(prices.reduce((s, p) => s + p, 0) / count);
+                const minP = prices[0];
+                const maxP = prices[count - 1];
+                const medianMiles = miles.length > 0 ? miles.sort((a, b) => a - b)[Math.floor(miles.length / 2)] : null;
+
+                // Mileage adjustment
                 let mileageAdj = "";
                 let adjFactor = 1;
-                if (vMileage && milesStats?.median) {
-                  const milesDiff = parseInt(vMileage) - milesStats.median;
-                  // ~$0.05-0.15 per mile deviation depending on vehicle value
-                  const perMile = priceStats.median > 30000 ? 0.12 : priceStats.median > 15000 ? 0.08 : 0.05;
-                  adjFactor = 1 - (milesDiff * perMile / priceStats.median);
-                  adjFactor = Math.max(0.7, Math.min(1.3, adjFactor)); // clamp ±30%
+                if (vMileage && medianMiles) {
+                  const milesDiff = parseInt(vMileage) - medianMiles;
+                  const perMile = median > 30000 ? 0.12 : median > 15000 ? 0.08 : 0.05;
+                  adjFactor = 1 - (milesDiff * perMile / median);
+                  adjFactor = Math.max(0.7, Math.min(1.3, adjFactor));
                   mileageAdj = milesDiff > 0
-                    ? `Vehicle has ${Math.abs(milesDiff).toLocaleString()} more miles than market median — value adjusted down`
-                    : `Vehicle has ${Math.abs(milesDiff).toLocaleString()} fewer miles than market median — value adjusted up`;
+                    ? `Vehicle has ${Math.abs(milesDiff).toLocaleString()} more miles than market median (${medianMiles.toLocaleString()}) — value adjusted down`
+                    : milesDiff < -5000 ? `Vehicle has ${Math.abs(milesDiff).toLocaleString()} fewer miles than market median — value adjusted up` : "";
                 }
-                const adjMedian = Math.round(priceStats.median * adjFactor);
-                const adjMin = Math.round((priceStats.min || priceStats.median * 0.75) * adjFactor);
-                const adjMax = Math.round((priceStats.max || priceStats.median * 1.25) * adjFactor);
-                // Use percentile-based range: ~15th to ~85th percentile estimate
-                const acvLow = Math.round(adjMedian * 0.85);
-                const acvHigh = Math.round(adjMedian * 1.15);
+                const adjMedian = Math.round(median * adjFactor);
+                // Use ~15th and ~85th percentile for range
+                const p15 = prices[Math.max(0, Math.floor(count * 0.15))];
+                const p85 = prices[Math.min(count - 1, Math.floor(count * 0.85))];
+                const acvLow = Math.round(p15 * adjFactor);
+                const acvHigh = Math.round(p85 * adjFactor);
+
                 acvData = {
                   acv_low: acvLow,
                   acv_high: acvHigh,
                   acv_mid: adjMedian,
                   condition_assumed: "good",
                   mileage_adjustment: mileageAdj,
-                  source_basis: `MarketCheck: ${count} comparable listings within 200mi of ${zipCode}, median $${priceStats.median.toLocaleString()}`,
-                  _mc_raw: { median: priceStats.median, mean: priceStats.mean, min: priceStats.min, max: priceStats.max, count },
+                  source_basis: `MarketCheck: ${count} comparable listings within 300mi, median $${median.toLocaleString()}`,
+                  _mc_raw: { median, mean, min: minP, max: maxP, count, medianMiles },
                 };
                 mcSuccess = true;
-                console.log(`ACV from MarketCheck: $${adjMedian.toLocaleString()} (${count} listings, median $${priceStats.median.toLocaleString()})`);
+                console.log(`ACV from MarketCheck: $${adjMedian.toLocaleString()} (${count} listings, median $${median.toLocaleString()})`);
+              } else {
+                console.log(`MarketCheck: only ${count} priced listings — falling back to Gemini`);
               }
             }
-          } catch (e) { console.warn("MarketCheck ACV failed:", e.message); }
+          } catch (e) { console.warn("MarketCheck ACV parse failed:", e.message); }
 
           // Gemini fallback if MarketCheck failed or unavailable
           if (!mcSuccess) {
