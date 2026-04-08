@@ -3,6 +3,7 @@ import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fet
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
 import { PARTS_CATALOG_PROMPT } from "./parts-catalog.js";
+import { LABOR_TIMES, getLaborHours, getRefinishHours, getClassMultiplier } from "./labor-times.js";
 
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
@@ -1813,6 +1814,50 @@ GENERAL ACCURACY RULES:
               mergedDamages.push(merged);
             }
           }
+        }
+
+        // --- Post-processing: override Gemini's labor hours with our database ---
+        if (type === "auto") {
+          const classMulti = getClassMultiplier(getVehicleClass(vMake, vModel));
+          const classFactor = (classMulti[0] + classMulti[1]) / 2;
+          let overrideCount = 0;
+          for (const d of mergedDamages) {
+            if (!d.operation) continue;
+            const compName = d.component || "";
+            const op = (d.operation || "").toUpperCase();
+
+            // Override R&R / R&I / Repair labor hours from database
+            if (d.labor && (op === "R&R" || op === "R&I" || op === "REPAIR")) {
+              const dbEntry = getLaborHours(compName);
+              if (dbEntry) {
+                const dbMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * classFactor * 10) / 10;
+                d.labor.hours = dbMid;
+                d.labor.type = dbEntry.type || d.labor.type;
+                overrideCount++;
+              }
+            }
+
+            // Override Refinish / Blend paint hours from database
+            if (d.paint && (op === "REFINISH" || op === "BLEND")) {
+              const dbPaint = getRefinishHours(compName);
+              if (dbPaint) {
+                const paintMid = (dbPaint.hours[0] + dbPaint.hours[1]) / 2;
+                d.paint.hours = op === "BLEND"
+                  ? Math.round(paintMid * LABOR_TIMES.blend.two_stage_pct * 10) / 10
+                  : Math.round(paintMid * 10) / 10;
+                d.paint.materials = Math.round(d.paint.hours * (LABOR_TIMES.paint_materials.mid || 40));
+              }
+            }
+
+            // Recalculate estimated_cost from overridden breakdown
+            const laborCost = d.labor ? Math.round(d.labor.hours * d.labor.rate) : 0;
+            const paintCost = d.paint ? Math.round(d.paint.hours * d.paint.rate) + (d.paint.materials || 0) : 0;
+            const partCost = d.part_info?.price || 0;
+            const subletCost = d.sublet || 0;
+            const recalc = laborCost + paintCost + partCost + subletCost;
+            if (recalc > 0) d.estimated_cost = recalc;
+          }
+          if (overrideCount > 0) console.log(`Labor hours overridden: ${overrideCount} components (class factor: ${classFactor.toFixed(2)})`);
         }
 
         // Calculate totals — Mitchell auto uses single estimated_cost, property uses low/high
