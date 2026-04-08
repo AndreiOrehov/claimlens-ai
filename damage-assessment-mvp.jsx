@@ -1145,7 +1145,7 @@ Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-part
         // Use search endpoint with rows=50 to get listings, then compute stats ourselves
         const mcTimeout = (promise, ms) => Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
         const marketCheckPromise = (!acvData && mcKey) ? mcTimeout(fetch(
-          `https://api.marketcheck.com/v2/search/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}&model=${encodeURIComponent(vModel)}&zip=${zipCode}&radius=300&rows=30&sort_by=distance&sort_order=asc`
+          `https://api.marketcheck.com/v2/search/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}&model=${encodeURIComponent(vModel)}&zip=${zipCode}&radius=100&rows=30&sort_by=distance&sort_order=asc`
         ), 8000).catch((e) => { console.warn("MarketCheck request failed:", e.message); return null; }) : Promise.resolve(null);
 
         // Gemini fallback: only if no cache AND no MarketCheck key
