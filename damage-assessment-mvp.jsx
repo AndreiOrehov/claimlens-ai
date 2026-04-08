@@ -1428,32 +1428,52 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
   "confidence": 0.0-1.0,
   "damages": [
     {
-      "component": "Name of damaged part/area",
-      "description": "What happened to it — describe SPECIFIC visual evidence",
+      "component": "Specific part name (e.g. 'Front Bumper Cover', 'Fender LH', 'Headlamp Assy RH')",
+      "operation": "R&R|R&I|Repair|Refinish|Blend|Sublet",
+      "description": "What happened — describe SPECIFIC visual evidence",
       "severity": "minor|moderate|severe",
-      "cost_breakdown": {
-        "parts_oem": number_or_null,
-        "parts_aftermarket": number_or_null,
-        "labor_hours_low": number,
-        "labor_hours_high": number,
-        "labor_rate": number,
-        "paint_materials": number_or_null,
-        "notes": "Short explanation (e.g. 'Blend adjacent fender required', 'R&I trim pieces included')"
+      "part_info": {
+        "type": "OEM|AFT|LKQ|null",
+        "price": number_or_null,
+        "oem_price": number_or_null,
+        "number": "OEM part number if known, else null"
       },
-      "estimated_cost_low": "MUST equal: parts_aftermarket + (labor_hours_low × labor_rate) + paint_materials",
-      "estimated_cost_high": "MUST equal: parts_oem + (labor_hours_high × labor_rate) + paint_materials"
+      "labor": {
+        "type": "body|mechanical|frame|paint",
+        "hours": number,
+        "rate": number
+      },
+      "paint": {
+        "hours": number_or_null,
+        "rate": number_or_null,
+        "materials": number_or_null
+      },
+      "sublet": number_or_null,
+      "estimated_cost": number,
+      "notes": "e.g. 'Includes R&I fog lamp 0.3 hrs', 'Blend adjacent door required'"
     }
   ],
+  "estimate_summary": {
+    "body_labor_hours": number,
+    "body_labor_amount": number,
+    "mechanical_labor_hours": number,
+    "mechanical_labor_amount": number,
+    "paint_labor_hours": number,
+    "paint_labor_amount": number,
+    "paint_materials": number,
+    "parts_total": number,
+    "parts_oem_total": number,
+    "sublet_total": number,
+    "gross_total": number
+  },
   "potential_damages": [
     {
       "component": "Name of part likely damaged but NOT visible in photos",
-      "reason": "Why you believe this part is likely damaged (e.g. 'fire damage to adjacent areas suggests...')",
-      "estimated_cost_low": number,
-      "estimated_cost_high": number
+      "reason": "Why you believe this is likely damaged",
+      "estimated_cost": number
     }
   ],
-  "total_estimate_low": number,
-  "total_estimate_high": number,
+  "total_estimate": number,
   "vehicle_acv": {
     "low": number_or_null,
     "high": number_or_null,
@@ -1464,30 +1484,37 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
     "repair_to_acv_pct": number_or_null,
     "threshold_pct": 75,
     "recommendation": "repair|total_loss|borderline",
-    "reasoning": "1-2 sentence explanation (e.g. 'Repair cost $X = Y% of ACV $Z, which exceeds the 75% threshold')"
+    "reasoning": "1-2 sentence explanation"
   },
   "adjuster_checklist": [
-    "Specific inspection action based on damage found (e.g. 'Verify frame alignment on rack — front-end impact detected')",
-    "Another action item..."
+    "Specific inspection action tied to damage found"
   ],
-  "recommendations": ["3-5 actionable next steps, no duplicates"],
+  "recommendations": ["3-5 actionable next steps"],
   "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
 }`}
 
-ACCURACY RULES:
-1. "damages" array: ONLY damage confirmed by visual evidence in the photos. For each item, describe the SPECIFIC visual evidence you see (e.g. "dent visible on lower section" not just "damaged").
-2. "potential_damages" array: Parts you CANNOT see in photos but believe are likely damaged based on the vehicle model, damage pattern, or adjacent damage. For example: if there's fire damage in the cabin, the sunroof (which this model has) is likely affected too — put it here, NOT in "damages".
-3. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add it to "flags" as "unconfirmed: [description]".
-4. Be precise about location: specify left/right, front/rear, upper/lower based on what photos show.
-5. Use the PRICING REFERENCE DATA above as your baseline for cost estimates.
-6. total_estimate_low and total_estimate_high should ONLY include "damages" (visually confirmed). Do NOT add potential_damages to the totals.
-7. Keep recommendations to 3-5 items. Keep flags to 3-5 items.
-8. "cost_breakdown" is REQUIRED for EACH damage item. For auto: provide parts_oem (OEM price), parts_aftermarket (aftermarket/used price), labor_hours_low/high, labor_rate ($/hr for region), paint_materials (ONLY for exterior body panels that require painting — bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof. Set to null for everything else: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts (dashboard, seats, steering wheel, headliner, console, airbags), wiring, mechanical parts — these are all replaced, never painted). For property: provide materials_standard (builder grade), materials_premium (higher grade), labor_hours_low/high, labor_rate. Always include "notes" explaining what drives the range.
-9. CRITICAL MATH RULE: estimated_cost_low and estimated_cost_high MUST be calculated FROM cost_breakdown, NOT independently. For auto: low = parts_aftermarket + (labor_hours_low × labor_rate) + paint_materials (if applicable, else 0); high = parts_oem + (labor_hours_high × labor_rate) + paint_materials (if applicable, else 0). For property: low = materials_standard + (labor_hours_low × labor_rate); high = materials_premium + (labor_hours_high × labor_rate). Double-check arithmetic before returning.
-10. "vehicle_acv": If ACV data was provided above, use it. If not, estimate based on year/make/model/mileage. Set all to null ONLY if you truly cannot estimate (e.g. unknown vehicle). ACV = pre-accident fair market value.
-11. "total_loss_analysis": Calculate repair_to_acv_pct using a SINGLE repair estimate (weighted: 60% low + 40% high, reflecting typical insurer-approved aftermarket parts). repair_to_acv_pct = (repair_estimate / vehicle_acv.mid) × 100. If pct > 75%, recommend "total_loss". If pct > 60%, recommend "borderline". Otherwise "repair". Provide one clear percentage, not a range.
-12. "adjuster_checklist": Generate 5-10 SPECIFIC inspection actions that an adjuster should perform based on the damage found. These must be tied to actual damage detected — NOT generic. Examples: "Check frame rail alignment — front bumper impact detected", "Inspect airbag deployment sensors — dashboard damage present", "Verify AC system charge — condenser area impacted", "Pull paint thickness readings on left quarter panel — possible prior repair". Each item should reference the specific damage that triggered it.`;
+MITCHELL-STYLE ESTIMATE RULES (for auto claims):
+1. Each line item represents ONE operation on ONE component. If a fender needs R&R + Refinish, create TWO line items.
+2. Operation types: R&R (remove & replace with new part), R&I (remove & reinstall same part for access), Repair (fix in place — straighten, fill, weld), Refinish (sand, prime, basecoat, clearcoat), Blend (partial refinish of adjacent undamaged panel for color match), Sublet (outsourced: alignment, ADAS calibration, A/C recharge, tow).
+3. Parts: Use AFT (aftermarket) as default type when available (insurer standard). Include oem_price for reference. Use OEM only when no aftermarket exists (e.g. structural parts, glass, electronics). Use LKQ for older vehicles when recycled parts are practical.
+4. Labor hours: ALWAYS a single number (e.g. 2.5), NEVER a range. Use standard estimating guide hours. Labor types: body ($50-75/hr), mechanical ($55-80/hr), frame ($60-85/hr), paint ($50-75/hr). Use the region's actual rate from PRICING REFERENCE DATA.
+5. Paint/Refinish: ONLY for exterior body panels (bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof). Create separate Refinish line items. Add Blend line items for adjacent undamaged panels. Paint materials = paint_hours × $32-40/hr material rate. NOT for: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts, mechanical parts.
+6. estimated_cost per line = part_price + (labor.hours × labor.rate) + (paint.hours × paint.rate) + paint.materials + sublet. Double-check arithmetic.
+7. estimate_summary: sum all labor by type, all parts, all paint materials, all sublet into the summary object. gross_total = sum of everything.
+8. total_estimate = estimate_summary.gross_total (single number, not a range).
+9. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence.
+10. "potential_damages": parts NOT visible but likely damaged. Use single estimated_cost.
+
+GENERAL ACCURACY RULES:
+1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags".
+2. Be precise about location: left/right, front/rear.
+3. Use PRICING REFERENCE DATA as baseline.
+4. total_estimate should ONLY include "damages" (visually confirmed). Do NOT add potential_damages.
+5. Keep recommendations to 3-5. Keep flags to 3-5.
+6. "vehicle_acv": Use provided ACV data if available. Else estimate from year/make/model/mileage.
+7. "total_loss_analysis": repair_to_acv_pct = (total_estimate / vehicle_acv.mid) × 100. If >75% → total_loss. If >60% → borderline. Else → repair.
+8. "adjuster_checklist": 5-10 SPECIFIC inspection actions tied to actual detected damage.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
@@ -1575,36 +1602,99 @@ ACCURACY RULES:
         // Keep components found in 2+ runs (consensus), or all if only 1 run
         const minVotes = assessments.length >= 3 ? 2 : 1;
         const mergedDamages = [];
+        const isAutoType = assessments[0]?.damage_type === "auto" || assessments[0]?.damage_type === undefined;
         for (const [key, info] of Object.entries(damageMap)) {
           const uniqueRuns = new Set(info.entries.map(e => e.runIdx)).size;
           if (uniqueRuns >= minVotes) {
             const entries = info.entries;
-            const avgLow = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_low || 0), 0) / entries.length);
-            const avgHigh = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_high || 0), 0) / entries.length);
             // Pick most common severity
             const sevCounts = {};
             entries.forEach(e => { sevCounts[e.severity] = (sevCounts[e.severity] || 0) + 1; });
             const topSev = Object.entries(sevCounts).sort((a, b) => b[1] - a[1])[0][0];
             // Use longest description; pick best entry for extra fields
             const bestEntry = entries.sort((a, b) => (b.description || "").length - (a.description || "").length)[0];
-            const merged = {
-              component: info.component,
-              description: bestEntry.description,
-              severity: topSev,
-              estimated_cost_low: avgLow,
-              estimated_cost_high: avgHigh,
-            };
-            // Carry over cost_breakdown and property fields from best entry
-            if (bestEntry.cost_breakdown) merged.cost_breakdown = bestEntry.cost_breakdown;
-            if (bestEntry.room) merged.room = bestEntry.room;
-            if (bestEntry.surface) merged.surface = bestEntry.surface;
-            if (bestEntry.quantity) { merged.quantity = bestEntry.quantity; merged.unit = bestEntry.unit; merged.unit_cost_low = bestEntry.unit_cost_low; merged.unit_cost_high = bestEntry.unit_cost_high; }
-            mergedDamages.push(merged);
+
+            // Mitchell-style auto: single estimated_cost, operation, part_info, labor, paint
+            if (bestEntry.operation !== undefined) {
+              const avgCost = Math.round(entries.reduce((s, e) => s + (e.estimated_cost || 0), 0) / entries.length);
+              const merged = {
+                component: info.component,
+                operation: bestEntry.operation,
+                description: bestEntry.description,
+                severity: topSev,
+                part_info: bestEntry.part_info || null,
+                labor: bestEntry.labor || null,
+                paint: bestEntry.paint || null,
+                sublet: bestEntry.sublet || null,
+                estimated_cost: avgCost,
+                notes: bestEntry.notes || "",
+              };
+              mergedDamages.push(merged);
+            } else {
+              // Property or legacy format: low/high range
+              const avgLow = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_low || 0), 0) / entries.length);
+              const avgHigh = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_high || 0), 0) / entries.length);
+              const merged = {
+                component: info.component,
+                description: bestEntry.description,
+                severity: topSev,
+                estimated_cost_low: avgLow,
+                estimated_cost_high: avgHigh,
+              };
+              if (bestEntry.cost_breakdown) merged.cost_breakdown = bestEntry.cost_breakdown;
+              if (bestEntry.room) merged.room = bestEntry.room;
+              if (bestEntry.surface) merged.surface = bestEntry.surface;
+              if (bestEntry.quantity) { merged.quantity = bestEntry.quantity; merged.unit = bestEntry.unit; merged.unit_cost_low = bestEntry.unit_cost_low; merged.unit_cost_high = bestEntry.unit_cost_high; }
+              mergedDamages.push(merged);
+            }
           }
         }
 
-        const totalLow = mergedDamages.reduce((s, d) => s + d.estimated_cost_low, 0);
-        const totalHigh = mergedDamages.reduce((s, d) => s + d.estimated_cost_high, 0);
+        // Calculate totals — Mitchell auto uses single estimated_cost, property uses low/high
+        const isMitchell = mergedDamages.some(d => d.operation !== undefined);
+        const totalEstimate = isMitchell
+          ? mergedDamages.reduce((s, d) => s + (d.estimated_cost || 0), 0)
+          : 0;
+        const totalLow = isMitchell ? totalEstimate : mergedDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
+        const totalHigh = isMitchell ? totalEstimate : mergedDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+
+        // Build estimate_summary for Mitchell auto by aggregating across merged damages
+        let mergedEstimateSummary = null;
+        if (isMitchell) {
+          mergedEstimateSummary = {
+            body_labor_hours: 0, body_labor_amount: 0,
+            mechanical_labor_hours: 0, mechanical_labor_amount: 0,
+            paint_labor_hours: 0, paint_labor_amount: 0,
+            paint_materials: 0, parts_total: 0, parts_oem_total: 0,
+            sublet_total: 0, gross_total: totalEstimate,
+          };
+          for (const d of mergedDamages) {
+            if (d.labor) {
+              const hrs = d.labor.hours || 0;
+              const amt = hrs * (d.labor.rate || 0);
+              if (d.labor.type === "body") { mergedEstimateSummary.body_labor_hours += hrs; mergedEstimateSummary.body_labor_amount += amt; }
+              else if (d.labor.type === "mechanical") { mergedEstimateSummary.mechanical_labor_hours += hrs; mergedEstimateSummary.mechanical_labor_amount += amt; }
+              else if (d.labor.type === "paint" || d.labor.type === "frame") { mergedEstimateSummary.paint_labor_hours += hrs; mergedEstimateSummary.paint_labor_amount += amt; }
+            }
+            if (d.paint) {
+              mergedEstimateSummary.paint_labor_hours += d.paint.hours || 0;
+              mergedEstimateSummary.paint_labor_amount += (d.paint.hours || 0) * (d.paint.rate || 0);
+              mergedEstimateSummary.paint_materials += d.paint.materials || 0;
+            }
+            if (d.part_info) {
+              mergedEstimateSummary.parts_total += d.part_info.price || 0;
+              mergedEstimateSummary.parts_oem_total += d.part_info.oem_price || d.part_info.price || 0;
+            }
+            mergedEstimateSummary.sublet_total += d.sublet || 0;
+          }
+          // Round all values
+          for (const k of Object.keys(mergedEstimateSummary)) {
+            mergedEstimateSummary[k] = Math.round(mergedEstimateSummary[k] * 100) / 100;
+          }
+          // Use AI's estimate_summary if available (more accurate grouping)
+          const aiSummary = assessments.find(a => a.estimate_summary)?.estimate_summary;
+          if (aiSummary) mergedEstimateSummary = { ...mergedEstimateSummary, ...aiSummary, gross_total: totalEstimate };
+        }
 
         // Pick most common severity/repair_vs_replace
         const pickMostCommon = (arr, field) => {
@@ -1646,15 +1736,23 @@ ACCURACY RULES:
             if (!potentialMap[key]) potentialMap[key] = { ...pd, count: 1 };
             else {
               potentialMap[key].count++;
-              potentialMap[key].estimated_cost_low = Math.round((potentialMap[key].estimated_cost_low + (pd.estimated_cost_low || 0)) / 2);
-              potentialMap[key].estimated_cost_high = Math.round((potentialMap[key].estimated_cost_high + (pd.estimated_cost_high || 0)) / 2);
+              // Mitchell auto: single estimated_cost; Property: low/high
+              if (pd.estimated_cost !== undefined) {
+                potentialMap[key].estimated_cost = Math.round((potentialMap[key].estimated_cost + (pd.estimated_cost || 0)) / 2);
+              } else {
+                potentialMap[key].estimated_cost_low = Math.round((potentialMap[key].estimated_cost_low + (pd.estimated_cost_low || 0)) / 2);
+                potentialMap[key].estimated_cost_high = Math.round((potentialMap[key].estimated_cost_high + (pd.estimated_cost_high || 0)) / 2);
+              }
               if ((pd.reason || "").length > (potentialMap[key].reason || "").length) potentialMap[key].reason = pd.reason;
             }
           });
         });
         const potentialDamages = Object.values(potentialMap).map(({ count, ...rest }) => rest);
-        const potentialTotalLow = potentialDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
-        const potentialTotalHigh = potentialDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+        const potentialTotal = isMitchell
+          ? potentialDamages.reduce((s, d) => s + (d.estimated_cost || 0), 0)
+          : 0;
+        const potentialTotalLow = isMitchell ? potentialTotal : potentialDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
+        const potentialTotalHigh = isMitchell ? potentialTotal : potentialDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
 
         // Merge vehicle_acv — average across runs that have it
         const acvRuns = assessments.filter(a => a.vehicle_acv?.mid);
@@ -1668,12 +1766,11 @@ ACCURACY RULES:
           };
         }
 
-        // Merge total_loss_analysis — use SINGLE midpoint estimate vs ACV (like real adjusters)
-        // Adjusters use one repair number (typically aftermarket parts + standard labor) vs one ACV
+        // Merge total_loss_analysis — use SINGLE estimate vs ACV (like real adjusters)
         let mergedTotalLoss = null;
         if (mergedAcv?.mid) {
-          // Repair estimate: use weighted midpoint (closer to low/aftermarket — that's what insurers typically approve)
-          const repairEstimate = Math.round(totalLow * 0.6 + totalHigh * 0.4); // weighted toward aftermarket
+          // Mitchell auto: use totalEstimate directly; Property: weighted midpoint
+          const repairEstimate = isMitchell ? totalEstimate : Math.round(totalLow * 0.6 + totalHigh * 0.4);
           const acvValue = mergedAcv.mid;
           const pct = Math.round((repairEstimate / acvValue) * 100);
           const rec = pct > 75 ? "total_loss" : pct > 60 ? "borderline" : "repair";
@@ -1688,26 +1785,37 @@ ACCURACY RULES:
         // Merge adjuster_checklist — deduplicate across runs
         const allChecklist = fuzzyDedup(assessments.flatMap(a => a.adjuster_checklist || [])).slice(0, 10);
 
-        return {
+        const result = {
           summary: assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0].summary,
           damage_type: assessments[0].damage_type,
           severity: pickMostCommon(assessments, "severity"),
           confidence: Math.round(avgConf * 100) / 100,
           damages: mergedDamages,
-          total_estimate_low: totalLow,
-          total_estimate_high: totalHigh,
           vehicle_acv: mergedAcv,
           total_loss_analysis: mergedTotalLoss,
           adjuster_checklist: allChecklist,
           potential_damages: potentialDamages,
-          potential_total_low: potentialTotalLow,
-          potential_total_high: potentialTotalHigh,
           recommendations: allRecs,
           flags: allFlags,
           repair_vs_replace: pickMostCommon(assessments, "repair_vs_replace"),
           _runs: assessments.length,
           _consensus: `${mergedDamages.length} components confirmed by ${minVotes}+ of ${assessments.length} runs`,
         };
+
+        if (isMitchell) {
+          // Mitchell auto: single total, estimate_summary
+          result.total_estimate = totalEstimate;
+          result.estimate_summary = mergedEstimateSummary;
+          result.potential_total = potentialTotal;
+        } else {
+          // Property: low/high ranges
+          result.total_estimate_low = totalLow;
+          result.total_estimate_high = totalHigh;
+          result.potential_total_low = potentialTotalLow;
+          result.potential_total_high = potentialTotalHigh;
+        }
+
+        return result;
       };
 
       const assessment = mergeAssessments(validResults);
@@ -1733,9 +1841,10 @@ ACCURACY RULES:
           source: acvData.source_basis || "Gemini pre-lookup",
         };
         // Recalculate total loss analysis with pre-lookup ACV — single number like real adjusters
-        const tl = assessment.total_estimate_low || 0;
-        const th = assessment.total_estimate_high || 0;
-        const repairEstimate = Math.round(tl * 0.6 + th * 0.4); // weighted toward aftermarket (insurer-typical)
+        // Mitchell auto: use total_estimate directly; Property fallback: weighted midpoint
+        const repairEstimate = assessment.total_estimate
+          ? assessment.total_estimate
+          : Math.round((assessment.total_estimate_low || 0) * 0.6 + (assessment.total_estimate_high || 0) * 0.4);
         const acvMid = acvData.acv_mid;
         const pct = Math.round((repairEstimate / acvMid) * 100);
         const rec = pct > 75 ? "total_loss" : pct > 60 ? "borderline" : "repair";
@@ -2146,7 +2255,9 @@ function HistoryView({ claims, onSelect }) {
                 <div style={{ fontSize: 11, color: palette.textDim, marginTop: 4 }}>
                   {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   {c.location && ` · ${c.location}`}
-                  {c.assessment && ` · $${c.assessment.total_estimate_low?.toLocaleString()}–$${c.assessment.total_estimate_high?.toLocaleString()}`}
+                  {c.assessment && (c.assessment.total_estimate != null
+                    ? ` · $${c.assessment.total_estimate?.toLocaleString()}`
+                    : ` · $${c.assessment.total_estimate_low?.toLocaleString()}–$${c.assessment.total_estimate_high?.toLocaleString()}`)}
                   {c.assessment?.total_loss_analysis?.recommendation === "total_loss" && (
                     <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: palette.dangerSoft, color: palette.danger, textTransform: "uppercase" }}>Total Loss</span>
                   )}
@@ -2189,7 +2300,9 @@ function ReportView({ claim, onBack, isPro = false }) {
     report += `Severity: ${a.severity?.toUpperCase()}\n`;
     report += `Confidence: ${Math.round((a.confidence || 0) * 100)}%\n\n`;
     report += `SUMMARY\n${"-".repeat(30)}\n${a.summary}\n\n`;
-    report += `ESTIMATED COST: $${a.total_estimate_low?.toLocaleString()} — $${a.total_estimate_high?.toLocaleString()}\n\n`;
+    report += a.total_estimate != null
+      ? `ESTIMATED COST: $${a.total_estimate?.toLocaleString()}\n\n`
+      : `ESTIMATED COST: $${a.total_estimate_low?.toLocaleString()} — $${a.total_estimate_high?.toLocaleString()}\n\n`;
     if (claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis) {
       const tla = a.total_loss_analysis;
       report += `TOTAL LOSS ANALYSIS\n${"-".repeat(30)}\n`;
@@ -2200,10 +2313,33 @@ function ReportView({ claim, onBack, isPro = false }) {
     }
     report += `DAMAGE DETAILS\n${"-".repeat(30)}\n`;
     a.damages?.forEach((d, i) => {
-      report += `${i + 1}. ${d.component} (${d.severity})\n`;
+      const op = d.operation ? ` [${d.operation}]` : "";
+      const partType = d.part_info?.type ? ` (${d.part_info.type})` : "";
+      report += `${i + 1}. ${d.component}${op}${partType} — ${d.severity}\n`;
       report += `   ${d.description}\n`;
-      report += `   Est: $${d.estimated_cost_low?.toLocaleString()} — $${d.estimated_cost_high?.toLocaleString()}\n\n`;
+      if (d.estimated_cost != null) {
+        report += `   Est: $${d.estimated_cost?.toLocaleString()}`;
+        if (d.labor?.hours) report += ` | Labor: ${d.labor.hours} hrs × $${d.labor.rate}/hr (${d.labor.type})`;
+        if (d.part_info?.price) report += ` | Part: $${d.part_info.price}`;
+        if (d.paint?.hours) report += ` | Paint: ${d.paint.hours} hrs`;
+        if (d.sublet) report += ` | Sublet: $${d.sublet}`;
+        report += "\n";
+      } else {
+        report += `   Est: $${d.estimated_cost_low?.toLocaleString()} — $${d.estimated_cost_high?.toLocaleString()}\n`;
+      }
+      if (d.notes) report += `   Note: ${d.notes}\n`;
+      report += "\n";
     });
+    if (a.estimate_summary) {
+      report += `ESTIMATE SUMMARY\n${"-".repeat(30)}\n`;
+      if (a.estimate_summary.body_labor_hours > 0) report += `Body Labor: ${a.estimate_summary.body_labor_hours} hrs = $${a.estimate_summary.body_labor_amount?.toLocaleString()}\n`;
+      if (a.estimate_summary.mechanical_labor_hours > 0) report += `Mechanical Labor: ${a.estimate_summary.mechanical_labor_hours} hrs = $${a.estimate_summary.mechanical_labor_amount?.toLocaleString()}\n`;
+      if (a.estimate_summary.paint_labor_hours > 0) report += `Paint Labor: ${a.estimate_summary.paint_labor_hours} hrs = $${a.estimate_summary.paint_labor_amount?.toLocaleString()}\n`;
+      if (a.estimate_summary.paint_materials > 0) report += `Paint Materials: $${a.estimate_summary.paint_materials?.toLocaleString()}\n`;
+      if (a.estimate_summary.parts_total > 0) report += `Parts Total: $${a.estimate_summary.parts_total?.toLocaleString()}\n`;
+      if (a.estimate_summary.sublet_total > 0) report += `Sublet: $${a.estimate_summary.sublet_total?.toLocaleString()}\n`;
+      report += `GROSS TOTAL: $${a.estimate_summary.gross_total?.toLocaleString()}\n\n`;
+    }
     if (a.recommendations?.length) {
       report += `RECOMMENDATIONS\n${"-".repeat(30)}\n`;
       a.recommendations.forEach((r, i) => { report += `${i + 1}. ${r}\n`; });
@@ -2276,20 +2412,27 @@ function ReportView({ claim, onBack, isPro = false }) {
         </td></tr>${rows}`;
       }).join("");
     } else {
+      // Auto: Mitchell-style rows
+      const opColorMap = { "R&R": "#2563EB", "R&I": "#7C3AED", "Repair": "#059669", "Refinish": "#D97706", "Blend": "#8B5CF6", "Sublet": "#DC2626" };
+      const ptColorMap = { "OEM": "#2563EB", "AFT": "#059669", "LKQ": "#D97706" };
       damageRows = (a.damages || []).map((d, i) => {
         const dc = sevColorMap[d.severity] || "#F59E0B";
-        const cb = d.cost_breakdown;
-        const breakdownInfo = cb ? `<div style="font-size:8px;color:#6B7280;margin-top:3px;line-height:1.5;">` +
-          (cb.parts_oem != null ? `OEM: $${cb.parts_oem?.toLocaleString()} · Aftermarket: $${cb.parts_aftermarket?.toLocaleString()}<br/>` : "") +
-          (cb.labor_hours_low != null ? `Labor: ${cb.labor_hours_low}–${cb.labor_hours_high} hrs × $${cb.labor_rate}/hr<br/>` : "") +
-          (cb.paint_materials != null ? `Paint/Materials: $${cb.paint_materials?.toLocaleString()}<br/>` : "") +
-          (cb.notes ? `<span style="font-style:italic;color:#9CA3AF;">${cb.notes}</span>` : "") +
-          `</div>` : "";
+        const opC = opColorMap[d.operation] || "#6B7280";
+        const opBadge = d.operation ? `<span class="badge" style="background:${opC}18;color:${opC};margin-right:4px;">${d.operation}</span>` : "";
+        const ptBadge = d.part_info?.type ? `<span class="badge" style="background:${ptColorMap[d.part_info.type] || "#6B7280"}15;color:${ptColorMap[d.part_info.type] || "#6B7280"};">${d.part_info.type}</span>` : "";
+        // Mitchell detail lines
+        const details = [];
+        if (d.labor?.hours) details.push(`${d.labor.type} labor: ${d.labor.hours} hrs × $${d.labor.rate}/hr`);
+        if (d.part_info?.price) details.push(`Part: $${d.part_info.price.toLocaleString()}${d.part_info.oem_price && d.part_info.oem_price !== d.part_info.price ? ` (OEM: $${d.part_info.oem_price.toLocaleString()})` : ""}`);
+        if (d.paint?.hours) details.push(`Paint: ${d.paint.hours} hrs${d.paint.materials ? ` + $${d.paint.materials} materials` : ""}`);
+        if (d.sublet) details.push(`Sublet: $${d.sublet.toLocaleString()}`);
+        const detailHTML = details.length > 0 ? `<div style="font-size:8px;color:#6B7280;margin-top:3px;line-height:1.5;">${details.join(" · ")}${d.notes ? `<br/><span style="font-style:italic;color:#9CA3AF;">${d.notes}</span>` : ""}</div>` : "";
+        const costStr = d.estimated_cost != null ? `$${d.estimated_cost.toLocaleString()}` : `$${(d.estimated_cost_low||0).toLocaleString()} – $${(d.estimated_cost_high||0).toLocaleString()}`;
         return `<tr>
-          <td class="tc">${i + 1}. ${d.component}</td>
+          <td class="tc">${opBadge}${i + 1}. ${d.component} ${ptBadge}</td>
           <td class="tc"><span class="badge" style="background:${dc}18;color:${dc};">${d.severity}</span></td>
           <td class="tc">${d.description}</td>
-          <td class="tc" style="text-align:right;font-weight:600;">$${(d.estimated_cost_low||0).toLocaleString()} – $${(d.estimated_cost_high||0).toLocaleString()}${breakdownInfo}</td>
+          <td class="tc" style="text-align:right;font-weight:600;">${costStr}${detailHTML}</td>
         </tr>`;
       }).join("");
     }
@@ -2323,7 +2466,7 @@ function ReportView({ claim, onBack, isPro = false }) {
     const potentialRows = (a.potential_damages||[]).map((pd, i) => `<tr>
       <td class="tc">${i + 1}. ${pd.component}</td>
       <td class="tc" style="font-style:italic;color:#6B7280;">${pd.reason}</td>
-      <td class="tc" style="text-align:right;font-weight:600;">$${(pd.estimated_cost_low||0).toLocaleString()} – $${(pd.estimated_cost_high||0).toLocaleString()}</td>
+      <td class="tc" style="text-align:right;font-weight:600;">${pd.estimated_cost != null ? `$${pd.estimated_cost.toLocaleString()}` : `$${(pd.estimated_cost_low||0).toLocaleString()} – $${(pd.estimated_cost_high||0).toLocaleString()}`}</td>
     </tr>`).join("");
 
     return `<!DOCTYPE html>
@@ -2439,9 +2582,20 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
 
   <div class="estimate">
     <div class="estimate-label">Estimated Total Repair Cost</div>
-    <div class="estimate-value">$${(a.total_estimate_low || 0).toLocaleString()} — $${(a.total_estimate_high || 0).toLocaleString()}</div>
-    <div style="font-size:9px;color:#6B7280;margin-top:4px;text-align:center;">Aftermarket parts + min labor → OEM parts + max labor</div>
+    <div class="estimate-value">${a.total_estimate != null ? `$${a.total_estimate.toLocaleString()}` : `$${(a.total_estimate_low || 0).toLocaleString()} — $${(a.total_estimate_high || 0).toLocaleString()}`}</div>
+    <div style="font-size:9px;color:#6B7280;margin-top:4px;text-align:center;">${a.total_estimate != null ? "Mitchell-style estimate" : "Low estimate → High estimate"}</div>
   </div>
+  ${a.estimate_summary ? `
+  <div style="margin-bottom:18px;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#64748B;margin-bottom:6px;">Estimate Summary</div>
+    ${a.estimate_summary.body_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Body Labor (${a.estimate_summary.body_labor_hours} hrs)</span><span>$${a.estimate_summary.body_labor_amount?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.mechanical_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Mechanical Labor (${a.estimate_summary.mechanical_labor_hours} hrs)</span><span>$${a.estimate_summary.mechanical_labor_amount?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.paint_labor_hours > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Paint Labor (${a.estimate_summary.paint_labor_hours} hrs)</span><span>$${a.estimate_summary.paint_labor_amount?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.paint_materials > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Paint Materials</span><span>$${a.estimate_summary.paint_materials?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.parts_total > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Parts Total</span><span>$${a.estimate_summary.parts_total?.toLocaleString()}</span></div>` : ""}
+    ${a.estimate_summary.sublet_total > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7280;margin-bottom:3px;"><span>Sublet</span><span>$${a.estimate_summary.sublet_total?.toLocaleString()}</span></div>` : ""}
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#0F172A;border-top:2px solid #CBD5E1;padding-top:6px;margin-top:4px;"><span>Gross Total</span><span>$${a.estimate_summary.gross_total?.toLocaleString()}</span></div>
+  </div>` : ""}
 
   ${claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis ? `
   <div style="margin-bottom:18px;padding:14px 18px;border-radius:8px;border:1px solid ${a.total_loss_analysis.recommendation === "total_loss" ? "#FECACA" : a.total_loss_analysis.recommendation === "borderline" ? "#FDE68A" : "#A7F3D0"};background:${a.total_loss_analysis.recommendation === "total_loss" ? "#FEF2F2" : a.total_loss_analysis.recommendation === "borderline" ? "#FFFBEB" : "#F0FDF4"};">
@@ -2504,7 +2658,7 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
       <thead><tr><th>Component</th><th>Reason</th><th>Est. Cost</th></tr></thead>
       <tbody>${potentialRows}</tbody>
     </table>
-    ${a.potential_total_low ? `<div style="text-align:right;margin-top:8px;font-size:11px;color:#92400E;font-weight:600;">Potential additional: $${(a.potential_total_low||0).toLocaleString()} – $${(a.potential_total_high||0).toLocaleString()}</div>` : ""}
+    ${(a.potential_total || a.potential_total_low) ? `<div style="text-align:right;margin-top:8px;font-size:11px;color:#92400E;font-weight:600;">Potential additional: ${a.potential_total != null ? `$${a.potential_total.toLocaleString()}` : `$${(a.potential_total_low||0).toLocaleString()} – $${(a.potential_total_high||0).toLocaleString()}`}</div>` : ""}
   </div>` : ""}
 
   ${recs ? `
@@ -2692,10 +2846,15 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
               Estimated Total Cost
             </div>
             <div style={{ fontSize: 26, fontWeight: 700, color: palette.text, marginTop: 4, letterSpacing: "-0.02em" }}>
-              ${a.total_estimate_low?.toLocaleString()} — ${a.total_estimate_high?.toLocaleString()}
+              {a.total_estimate != null
+                ? `$${a.total_estimate?.toLocaleString()}`
+                : `$${a.total_estimate_low?.toLocaleString()} — $${a.total_estimate_high?.toLocaleString()}`}
             </div>
-            {claim.type === "auto" && (
-              <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Aftermarket + min labor → OEM + max labor</div>
+            {claim.type === "auto" && a.total_estimate != null && (
+              <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Mitchell-style estimate</div>
+            )}
+            {claim.type !== "auto" && (
+              <div style={{ fontSize: 10, color: palette.textDim, marginTop: 2 }}>Low estimate → High estimate</div>
             )}
           </div>
           <div style={{
@@ -2934,65 +3093,89 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
             </div>
           );
         })() : (
-          /* Auto: flat list */
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          /* Auto: Mitchell-style line items */
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {a.damages?.map((d, i) => {
               const ds = severityConfig[d.severity] || severityConfig.moderate;
+              const opColors = { "R&R": "#2563EB", "R&I": "#7C3AED", "Repair": "#059669", "Refinish": "#D97706", "Blend": "#8B5CF6", "Sublet": "#DC2626" };
+              const partTypeColors = { "OEM": "#2563EB", "AFT": "#059669", "LKQ": "#D97706" };
               return (
                 <div key={i} style={{
                   padding: 14, borderRadius: 10, background: palette.surfaceAlt,
                   border: `1px solid ${palette.border}`,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      {d.operation && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                          background: `${opColors[d.operation] || palette.accent}18`,
+                          color: opColors[d.operation] || palette.accent,
+                          textTransform: "uppercase", letterSpacing: "0.05em",
+                        }}>{d.operation}</span>
+                      )}
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{d.component}</span>
                       <span style={{
                         fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 10,
                         background: ds.bg, color: ds.color, textTransform: "uppercase",
-                      }}>
-                        {d.severity}
-                      </span>
+                      }}>{d.severity}</span>
+                      {d.part_info?.type && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
+                          background: `${partTypeColors[d.part_info.type] || palette.textDim}15`,
+                          color: partTypeColors[d.part_info.type] || palette.textDim,
+                        }}>{d.part_info.type}</span>
+                      )}
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: palette.text }}>
-                      ${d.estimated_cost_low?.toLocaleString()}–${d.estimated_cost_high?.toLocaleString()}
+                    <span style={{ fontSize: 14, fontWeight: 700, color: palette.text, whiteSpace: "nowrap" }}>
+                      ${d.estimated_cost != null ? d.estimated_cost?.toLocaleString() : `${d.estimated_cost_low?.toLocaleString()}–${d.estimated_cost_high?.toLocaleString()}`}
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: palette.textMuted, margin: 0, lineHeight: 1.5 }}>{d.description}</p>
-                  {d.cost_breakdown && (
+                  <p style={{ fontSize: 12, color: palette.textMuted, margin: 0, lineHeight: 1.5 }}>{d.description}</p>
+                  {/* Mitchell detail row */}
+                  {(d.labor || d.part_info?.price || d.paint?.hours) && (
                     <div style={{
                       marginTop: 8, padding: "8px 10px", borderRadius: 8, background: palette.bg,
                       border: `1px solid ${palette.border}`, fontSize: 11, color: palette.textMuted,
                     }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px" }}>
-                        {d.cost_breakdown.parts_oem != null && (
+                        {d.part_info?.price != null && (
                           <>
-                            <span>OEM Parts:</span>
-                            <span style={{ fontWeight: 600, color: palette.text }}>${d.cost_breakdown.parts_oem?.toLocaleString()}</span>
+                            <span>Part ({d.part_info.type || "N/A"}):</span>
+                            <span style={{ fontWeight: 600, color: palette.text }}>${d.part_info.price?.toLocaleString()}</span>
                           </>
                         )}
-                        {d.cost_breakdown.parts_aftermarket != null && (
+                        {d.part_info?.oem_price != null && d.part_info.oem_price !== d.part_info.price && (
                           <>
-                            <span>Aftermarket:</span>
-                            <span style={{ fontWeight: 600, color: palette.success }}>${d.cost_breakdown.parts_aftermarket?.toLocaleString()}</span>
+                            <span>OEM Price:</span>
+                            <span style={{ fontWeight: 600, color: palette.textDim }}>${d.part_info.oem_price?.toLocaleString()}</span>
                           </>
                         )}
-                        {d.cost_breakdown.labor_hours_low != null && (
+                        {d.labor?.hours != null && (
                           <>
-                            <span>Labor:</span>
+                            <span>Labor ({d.labor.type}):</span>
                             <span style={{ fontWeight: 600, color: palette.text }}>
-                              {d.cost_breakdown.labor_hours_low}–{d.cost_breakdown.labor_hours_high} hrs × ${d.cost_breakdown.labor_rate}/hr
+                              {d.labor.hours} hrs × ${d.labor.rate}/hr = ${Math.round(d.labor.hours * d.labor.rate).toLocaleString()}
                             </span>
                           </>
                         )}
-                        {d.cost_breakdown.paint_materials != null && (
+                        {d.paint?.hours != null && (
                           <>
-                            <span>Paint/Materials:</span>
-                            <span style={{ fontWeight: 600, color: palette.text }}>${d.cost_breakdown.paint_materials?.toLocaleString()}</span>
+                            <span>Paint:</span>
+                            <span style={{ fontWeight: 600, color: palette.text }}>
+                              {d.paint.hours} hrs × ${d.paint.rate}/hr{d.paint.materials ? ` + $${d.paint.materials} materials` : ""}
+                            </span>
+                          </>
+                        )}
+                        {d.sublet != null && d.sublet > 0 && (
+                          <>
+                            <span>Sublet:</span>
+                            <span style={{ fontWeight: 600, color: palette.danger }}>${d.sublet?.toLocaleString()}</span>
                           </>
                         )}
                       </div>
-                      {d.cost_breakdown.notes && (
-                        <div style={{ marginTop: 4, fontSize: 10, color: palette.textDim, fontStyle: "italic" }}>{d.cost_breakdown.notes}</div>
+                      {d.notes && (
+                        <div style={{ marginTop: 4, fontSize: 10, color: palette.textDim, fontStyle: "italic" }}>{d.notes}</div>
                       )}
                     </div>
                   )}
@@ -3010,6 +3193,57 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                 </div>
               );
             })}
+            {/* Estimate Summary for Mitchell auto */}
+            {a.estimate_summary && (
+              <div style={{
+                padding: 14, borderRadius: 10, background: palette.surface,
+                border: `1px solid ${palette.border}`, marginTop: 4,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: palette.text, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Estimate Summary</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+                  {a.estimate_summary.body_labor_hours > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Body Labor ({a.estimate_summary.body_labor_hours} hrs)</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.body_labor_amount?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.mechanical_labor_hours > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Mechanical Labor ({a.estimate_summary.mechanical_labor_hours} hrs)</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.mechanical_labor_amount?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.paint_labor_hours > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Paint Labor ({a.estimate_summary.paint_labor_hours} hrs)</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.paint_labor_amount?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.paint_materials > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Paint Materials</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.paint_materials?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.parts_total > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Parts Total</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.parts_total?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {a.estimate_summary.sublet_total > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: palette.textMuted }}>
+                      <span>Sublet</span>
+                      <span style={{ fontWeight: 600, color: palette.text }}>${a.estimate_summary.sublet_total?.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: palette.text, borderTop: `1px solid ${palette.border}`, paddingTop: 6, marginTop: 4 }}>
+                    <span>Gross Total</span>
+                    <span>${a.estimate_summary.gross_total?.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -3034,9 +3268,11 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
               ? "Based on vehicle model and damage pattern, these parts may also be affected. Requires physical inspection to confirm."
               : "Based on damage pattern and property type, these areas may also be affected. Requires physical inspection to confirm."}
           </p>
-          {a.potential_total_low > 0 && (
+          {(a.potential_total || a.potential_total_low) > 0 && (
             <div style={{ fontSize: 13, fontWeight: 600, color: palette.warning, marginBottom: 12 }}>
-              Potential additional cost: ${a.potential_total_low?.toLocaleString()} – ${a.potential_total_high?.toLocaleString()}
+              Potential additional cost: {a.potential_total != null
+                ? `$${a.potential_total?.toLocaleString()}`
+                : `$${a.potential_total_low?.toLocaleString()} – $${a.potential_total_high?.toLocaleString()}`}
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -3048,7 +3284,9 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{pd.component}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: palette.textMuted }}>
-                    ${pd.estimated_cost_low?.toLocaleString()}–${pd.estimated_cost_high?.toLocaleString()}
+                    {pd.estimated_cost != null
+                      ? `$${pd.estimated_cost?.toLocaleString()}`
+                      : `$${pd.estimated_cost_low?.toLocaleString()}–$${pd.estimated_cost_high?.toLocaleString()}`}
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: palette.textDim, margin: 0, lineHeight: 1.5, fontStyle: "italic" }}>{pd.reason}</p>

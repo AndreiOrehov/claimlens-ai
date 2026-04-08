@@ -854,9 +854,10 @@ export function validateEstimates(assessment, type, options) {
   let warnings = 0;
 
   for (const dmg of assessment.damages) {
-    const costLow = dmg.estimated_cost_low ?? 0;
-    const costHigh = dmg.estimated_cost_high ?? 0;
-    const midEstimate = (costLow + costHigh) / 2;
+    // Mitchell auto: single estimated_cost; Property: low/high range
+    const costLow = dmg.estimated_cost ?? dmg.estimated_cost_low ?? 0;
+    const costHigh = dmg.estimated_cost ?? dmg.estimated_cost_high ?? 0;
+    const midEstimate = dmg.estimated_cost ?? (costLow + costHigh) / 2;
 
     if (type === "auto") {
       const { make, model } = options;
