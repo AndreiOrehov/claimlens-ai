@@ -1749,8 +1749,9 @@ GENERAL ACCURACY RULES:
           });
         });
 
-        // Keep components found in 2+ runs (consensus), or all if only 1 run
-        const minVotes = assessments.length >= 3 ? 2 : 1;
+        // Include ALL components found by any run (minVotes=1) — missing real damage
+        // is worse than a false positive (adjuster verifies). Mark low-confidence items.
+        const minVotes = 1;
         console.log("Merge damageMap:", Object.entries(damageMap).map(([k, v]) => `${k}(${new Set(v.entries.map(e=>e.runIdx)).size} runs)`).join(", "));
         const mergedDamages = [];
         const isAutoType = assessments[0]?.damage_type === "auto" || assessments[0]?.damage_type === undefined;
@@ -1796,6 +1797,8 @@ GENERAL ACCURACY RULES:
               const partCost = partInfo?.price || 0;
               const calcCost = laborCost + paintCost + partCost + sublet;
               const avgCost = Math.round(entries.reduce((s, e) => s + (e.estimated_cost || 0), 0) / entries.length);
+              const totalRuns = assessments.length;
+              const confidence = totalRuns >= 3 ? (uniqueRuns >= 3 ? "high" : uniqueRuns >= 2 ? "medium" : "low") : "medium";
               const merged = {
                 component: info.component,
                 operation: bestEntry.operation,
@@ -1807,6 +1810,8 @@ GENERAL ACCURACY RULES:
                 sublet: sublet,
                 estimated_cost: calcCost > 0 ? calcCost : avgCost,
                 notes: bestEntry.notes || "",
+                _confidence: confidence,
+                _runs: `${uniqueRuns}/${totalRuns}`,
               };
               mergedDamages.push(merged);
             } else {
@@ -2701,7 +2706,7 @@ function ReportView({ claim, onBack, isPro = false }) {
         const detailHTML = details.length > 0 ? `<div style="font-size:8px;color:#6B7280;margin-top:3px;line-height:1.5;">${details.join(" · ")}${d.notes ? `<br/><span style="font-style:italic;color:#9CA3AF;">${d.notes}</span>` : ""}</div>` : "";
         const costStr = d.estimated_cost != null ? `$${d.estimated_cost.toLocaleString()}` : `$${(d.estimated_cost_low||0).toLocaleString()} – $${(d.estimated_cost_high||0).toLocaleString()}`;
         return `<tr>
-          <td class="tc">${opBadge}${i + 1}. ${d.component} ${ptBadge}</td>
+          <td class="tc">${opBadge}${i + 1}. ${d.component} ${ptBadge}${d._confidence === "low" ? ` <span style="font-size:7px;color:#F59E0B;font-weight:600;" title="Found in ${d._runs} AI runs">⚠ 1 run</span>` : ""}</td>
           <td class="tc"><span class="badge" style="background:${dc}18;color:${dc};">${d.severity}</span></td>
           <td class="tc">${d.description}</td>
           <td class="tc" style="text-align:right;font-weight:600;">${costStr}${detailHTML}</td>
