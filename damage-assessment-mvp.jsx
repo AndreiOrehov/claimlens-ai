@@ -1734,8 +1734,9 @@ GENERAL ACCURACY RULES:
         if (assessments.length === 1) return assessments[0];
 
         // Normalize component name: sort words alphabetically so "front left window" == "left front window"
+        // Also converts underscores to spaces first so "front_bumper_cover" == "Front Bumper Cover"
         const normalizeComponent = (name) => {
-          const words = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort();
+          const words = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort();
           return words.join("_");
         };
 
