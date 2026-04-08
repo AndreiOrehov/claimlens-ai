@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER } from "./pricing-db.js";
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
+import { VEHICLE_SPECS } from "./vehicle-specs.js";
 
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
@@ -901,7 +902,6 @@ function NewClaimView({ onSubmit, initialType }) {
   const [vYear, setVYear] = useState("");
   const [vTrim, setVTrim] = useState("");
   const [vEngine, setVEngine] = useState("");
-  const [vBody, setVBody] = useState("");
   const [vMileage, setVMileage] = useState("");
 
   // Property fields
@@ -984,9 +984,15 @@ function NewClaimView({ onSubmit, initialType }) {
     .map(([name]) => name).sort() : [];
 
   const trims = (vMake && vModel && VEHICLE_TRIMS[vMake]?.[vModel]) || [];
-  const handleMakeChange = (val) => { setVMake(val); setVYear(""); setVModel(""); setVTrim(""); setVEngine(""); setVBody(""); };
-  const handleYearChange = (val) => { setVYear(val); setVModel(""); setVTrim(""); setVEngine(""); setVBody(""); };
-  const handleModelChange = (val) => { setVModel(val); setVTrim(""); setVEngine(""); setVBody(""); };
+  const engines = (vMake && vModel && VEHICLE_SPECS[vMake]?.[vModel]?.engines) || [];
+  const handleMakeChange = (val) => { setVMake(val); setVYear(""); setVModel(""); setVTrim(""); setVEngine(""); };
+  const handleYearChange = (val) => { setVYear(val); setVModel(""); setVTrim(""); setVEngine(""); };
+  const handleModelChange = (val) => {
+    setVModel(val); setVTrim("");
+    // Auto-select engine if only one option
+    const eng = (vMake && val && VEHICLE_SPECS[vMake]?.[val]?.engines) || [];
+    setVEngine(eng.length === 1 ? eng[0] : "");
+  };
 
   const extractVideoFrames = (file, maxFrames = 8) => {
     return new Promise((resolve) => {
@@ -1282,7 +1288,7 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
                   acv_mid: adjMedian,
                   condition_assumed: "good",
                   mileage_adjustment: mileageAdj,
-                  source_basis: `MarketCheck: ${count} comparable listings within 300mi, median $${median.toLocaleString()}`,
+                  source_basis: `MarketCheck: ${count} comparable listings within 100mi, median $${median.toLocaleString()}`,
                   _mc_raw: { median, mean, min: minP, max: maxP, count, medianMiles },
                 };
                 mcSuccess = true;
@@ -1321,7 +1327,7 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
         }
       }
 
-      const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vTrim ? ` ${vTrim}` : ""}${vEngine ? `, ${vEngine}` : ""}${vBody ? `, ${vBody}` : ""}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
+      const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vTrim ? ` ${vTrim}` : ""}${vEngine ? `, ${vEngine}` : ""}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
       const propertyContext = type === "property" ? `Property: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || pType}${pCause ? `, Cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `, Area: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `, ~${pSqft} sq ft` : ""}${pYearBuilt ? `, Built: ${pYearBuilt}` : ""}` : "";
       const objectContext = vehicleContext || propertyContext;
 
@@ -1393,7 +1399,7 @@ COST CALCULATION GUIDANCE (typical ranges per unit):
 - Overhead & Profit: typically 10% overhead + 10% profit on subtotal
 - Material sales tax: varies by state (6%–10.25%)` : ""}
 ${type === "auto" && vMake ? `
-VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vTrim ? ` ${vTrim}` : ""}${vEngine ? `, Engine: ${vEngine}` : ""}${vBody ? `, Body: ${vBody}` : ""}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
+VEHICLE DETAILS: ${vYear} ${vMake} ${vModel}${vTrim ? ` ${vTrim}` : ""}${vEngine ? `, Engine: ${vEngine}` : ""}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}.
 Use this information to provide accurate, model-specific repair cost estimates. Consider the vehicle's market value when assessing repair vs. replace recommendations. Factor in OEM vs aftermarket parts pricing for this specific vehicle.${modelPricingContext}${acvContext}` : ""}
 ${type === "property" ? `
 PROPERTY DETAILS: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || "Unknown type"}${pCause ? `. Damage cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `. Primary area affected: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `. Approximate size: ${pSqft} sq ft` : ""}${pYearBuilt ? `. Year built: ${pYearBuilt}` : ""}.
@@ -1955,7 +1961,7 @@ GENERAL ACCURACY RULES:
         pricingSource: mergedPricing?.source || "reference",
         assessment,
         validation,
-        vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, body: vBody, mileage: vMileage } : null,
+        vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, mileage: vMileage } : null,
         property: type === "property" ? { type: pType, cause: pCause, area: pArea, sqft: pSqft, yearBuilt: pYearBuilt, address: pAddress } : null,
         createdAt: new Date().toISOString(),
       };
@@ -2014,19 +2020,18 @@ GENERAL ACCURACY RULES:
             <Select label="Make *" value={vMake} onChange={handleMakeChange} options={makes} placeholder="Select make..." />
             <Select label="Year *" value={vYear} onChange={handleYearChange} options={years} placeholder={vMake ? "Select year..." : "Select make first"} disabled={!vMake} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginTop: 12 }}>
             <Select label="Model *" value={vModel} onChange={handleModelChange} options={models} placeholder={vYear ? "Select model..." : "Select year first"} disabled={!vYear} />
             <Select label="Trim" value={vTrim} onChange={setVTrim} options={trims} placeholder={trims.length ? "Select trim..." : "Base"} disabled={!vModel} />
-            <Input label="Mileage" value={vMileage} onChange={setVMileage} placeholder="e.g. 85000" type="number" />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
-            <Input label="Engine" value={vEngine} onChange={setVEngine} placeholder="e.g. 2.0L Turbo, 3.5L V6" />
-            <Input label="Body" value={vBody} onChange={setVBody} placeholder="e.g. Sedan, SUV, Coupe" />
+            <Select label="Engine" value={vEngine} onChange={setVEngine} options={engines} placeholder={engines.length <= 1 ? (engines[0] || "N/A") : "Select engine..."} disabled={!vModel || engines.length <= 1} />
+            <Input label="Mileage" value={vMileage} onChange={setVMileage} placeholder="e.g. 85000" type="number" />
             <Select label="State *" value={claimState} onChange={setClaimState} options={US_STATES} placeholder="Select state..." />
           </div>
           {vMake && vModel && vYear && (
             <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, background: palette.accentSoft, fontSize: 12, color: palette.accent, fontWeight: 500 }}>
-              {vYear} {vMake} {vModel}{vTrim ? ` ${vTrim}` : ""}{vEngine ? ` · ${vEngine}` : ""}{vBody ? ` · ${vBody}` : ""}{vMileage ? ` · ${parseInt(vMileage).toLocaleString()} mi` : ""}
+              {vYear} {vMake} {vModel}{vTrim ? ` ${vTrim}` : ""}{vEngine ? ` · ${vEngine}` : ""}{vMileage ? ` · ${parseInt(vMileage).toLocaleString()} mi` : ""}
             </div>
           )}
         </div>
@@ -2656,7 +2661,7 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
     <div class="meta">
       <strong>Report ID:</strong> ${claim.id}<br/>
       <strong>Date:</strong> ${new Date(claim.createdAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<br/>
-      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim && claim.vehicle.trim !== "Base" ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.engine ? ` · ${claim.vehicle.engine}` : ""}${claim.vehicle.body ? ` · ${claim.vehicle.body}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
+      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim && claim.vehicle.trim !== "Base" ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.engine ? ` · ${claim.vehicle.engine}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
     </div>
   </div>
 
