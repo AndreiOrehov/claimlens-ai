@@ -31,6 +31,26 @@ export const VEHICLE_SPECS = {
     "NSX": {
       engines: ["3.5L Twin-Turbo V6 Hybrid"],
       bodies: ["Coupe"]
+    },
+    "RL": {
+      engines: ["3.5L V6"],
+      bodies: ["Sedan"]
+    },
+    "RLX": {
+      engines: ["3.5L V6", "3.5L V6 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "TL": {
+      engines: ["3.2L V6", "3.5L V6", "3.7L V6"],
+      bodies: ["Sedan"]
+    },
+    "CL": {
+      engines: ["3.2L V6"],
+      bodies: ["Coupe"]
+    },
+    "ZDX": {
+      engines: ["3.7L V6"],
+      bodies: ["SUV"]
     }
   },
   "Audi": {
@@ -169,6 +189,10 @@ export const VEHICLE_SPECS = {
     "TT RS": {
       engines: ["2.5L Turbo I5"],
       bodies: ["Coupe"]
+    },
+    "R8": {
+      engines: ["4.2L V8", "5.2L V10"],
+      bodies: ["Coupe", "Convertible"]
     }
   },
   "BMW": {
@@ -335,6 +359,18 @@ export const VEHICLE_SPECS = {
     "i7": {
       engines: ["Dual Motor Electric"],
       bodies: ["Sedan"]
+    },
+    "Z4": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo I6"],
+      bodies: ["Convertible"]
+    },
+    "i3": {
+      engines: ["Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "i8": {
+      engines: ["1.5L Turbo I3 Plug-in Hybrid"],
+      bodies: ["Coupe", "Convertible"]
     }
   },
   "Buick": {
@@ -361,6 +397,54 @@ export const VEHICLE_SPECS = {
     "Regal": {
       engines: ["2.0L Turbo I4", "3.6L V6"],
       bodies: ["Sedan", "Hatchback", "Wagon"]
+    },
+    "Regal Sportback": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Regal TourX": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Wagon"]
+    },
+    "Verano": {
+      engines: ["2.4L I4", "2.0L Turbo I4"],
+      bodies: ["Sedan"]
+    },
+    "Cascada": {
+      engines: ["1.6L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "LeSabre": {
+      engines: ["3.8L V6"],
+      bodies: ["Sedan"]
+    },
+    "Lucerne": {
+      engines: ["3.8L V6", "3.9L V6", "4.6L V8"],
+      bodies: ["Sedan"]
+    },
+    "Rendezvous": {
+      engines: ["3.4L V6", "3.6L V6"],
+      bodies: ["SUV"]
+    },
+    "Terraza": {
+      engines: ["3.5L V6"],
+      bodies: ["Minivan"]
+    },
+    "Century": {
+      engines: ["3.1L V6"],
+      bodies: ["Sedan"]
+    },
+    "Park Avenue": {
+      engines: ["3.8L V6", "3.8L Supercharged V6"],
+      bodies: ["Sedan"]
+    },
+    "Rainier": {
+      engines: ["4.2L I6", "5.3L V8"],
+      bodies: ["SUV"]
+    },
+    "Envista": {
+      engines: ["1.2L Turbo I3"],
+      bodies: ["SUV"]
     }
   },
   "Cadillac": {
@@ -373,6 +457,10 @@ export const VEHICLE_SPECS = {
       bodies: ["Sedan"]
     },
     "Escalade": {
+      engines: ["6.2L V8", "3.0L Turbo Diesel I6"],
+      bodies: ["SUV"]
+    },
+    "Escalade ESV": {
       engines: ["6.2L V8", "3.0L Turbo Diesel I6"],
       bodies: ["SUV"]
     },
@@ -399,11 +487,47 @@ export const VEHICLE_SPECS = {
     "ATS": {
       engines: ["2.0L Turbo I4", "2.5L I4", "3.6L V6"],
       bodies: ["Sedan", "Coupe"]
+    },
+    "XTS": {
+      engines: ["3.6L V6", "3.6L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "CT6": {
+      engines: ["2.0L Turbo I4", "3.0L Twin-Turbo V6", "4.2L Twin-Turbo V8"],
+      bodies: ["Sedan"]
+    },
+    "SRX": {
+      engines: ["2.8L Turbo V6", "3.0L V6", "3.6L V6"],
+      bodies: ["SUV"]
+    },
+    "STS": {
+      engines: ["3.6L V6", "4.4L V8", "4.6L V8"],
+      bodies: ["Sedan"]
+    },
+    "DTS": {
+      engines: ["4.6L V8"],
+      bodies: ["Sedan"]
+    },
+    "ELR": {
+      engines: ["1.4L I4 Plug-in Hybrid"],
+      bodies: ["Coupe"]
+    },
+    "Escalade EXT": {
+      engines: ["6.0L V8", "6.2L V8"],
+      bodies: ["Truck"]
+    },
+    "CELESTIQ": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["Sedan"]
     }
   },
   "Chevrolet": {
     "Blazer": {
       engines: ["2.0L Turbo I4", "2.5L I4", "3.6L V6"],
+      bodies: ["SUV"]
+    },
+    "Blazer EV": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
       bodies: ["SUV"]
     },
     "Camaro": {
@@ -422,6 +546,10 @@ export const VEHICLE_SPECS = {
       engines: ["1.5L Turbo I4", "2.0L Turbo I4", "1.6L Turbo Diesel I4"],
       bodies: ["SUV"]
     },
+    "Equinox EV": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
     "Malibu": {
       engines: ["1.5L Turbo I4", "2.0L Turbo I4"],
       bodies: ["Sedan"]
@@ -432,6 +560,14 @@ export const VEHICLE_SPECS = {
     },
     "Silverado 2500HD": {
       engines: ["6.6L V8", "6.6L Turbo Diesel V8"],
+      bodies: ["Truck"]
+    },
+    "Silverado 3500HD": {
+      engines: ["6.6L V8", "6.6L Turbo Diesel V8"],
+      bodies: ["Truck"]
+    },
+    "Silverado EV": {
+      engines: ["Dual Motor Electric"],
       bodies: ["Truck"]
     },
     "Suburban": {
@@ -461,6 +597,66 @@ export const VEHICLE_SPECS = {
     "Trailblazer": {
       engines: ["1.2L Turbo I3", "1.3L Turbo I3"],
       bodies: ["SUV"]
+    },
+    "Impala": {
+      engines: ["2.5L I4", "3.6L V6", "5.3L V8"],
+      bodies: ["Sedan"]
+    },
+    "Cruze": {
+      engines: ["1.4L Turbo I4", "1.6L Turbo Diesel I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Sonic": {
+      engines: ["1.8L I4", "1.4L Turbo I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Spark": {
+      engines: ["1.2L I4", "1.4L I4", "Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "Cobalt": {
+      engines: ["2.2L I4", "2.4L I4", "2.0L Turbo I4"],
+      bodies: ["Sedan", "Coupe"]
+    },
+    "Aveo": {
+      engines: ["1.6L I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "SS": {
+      engines: ["6.2L V8"],
+      bodies: ["Sedan"]
+    },
+    "Monte Carlo": {
+      engines: ["3.5L V6", "3.9L V6", "5.3L V8"],
+      bodies: ["Coupe"]
+    },
+    "HHR": {
+      engines: ["2.2L I4", "2.4L I4", "2.0L Turbo I4"],
+      bodies: ["Wagon"]
+    },
+    "City Express": {
+      engines: ["2.0L I4"],
+      bodies: ["Van"]
+    },
+    "Express": {
+      engines: ["4.3L V6", "4.8L V8", "6.0L V8", "6.6L Turbo Diesel V8"],
+      bodies: ["Van"]
+    },
+    "Captiva": {
+      engines: ["2.4L I4", "3.0L V6"],
+      bodies: ["SUV"]
+    },
+    "Orlando": {
+      engines: ["2.4L I4"],
+      bodies: ["SUV"]
+    },
+    "Volt": {
+      engines: ["1.5L I4 Plug-in Hybrid"],
+      bodies: ["Hatchback"]
+    },
+    "Uplander": {
+      engines: ["3.5L V6", "3.9L V6"],
+      bodies: ["Minivan"]
     }
   },
   "Chrysler": {
@@ -475,6 +671,30 @@ export const VEHICLE_SPECS = {
     "Voyager": {
       engines: ["3.6L V6"],
       bodies: ["Minivan"]
+    },
+    "200": {
+      engines: ["2.4L I4", "3.6L V6"],
+      bodies: ["Sedan"]
+    },
+    "Town & Country": {
+      engines: ["3.6L V6", "3.8L V6"],
+      bodies: ["Minivan"]
+    },
+    "PT Cruiser": {
+      engines: ["2.4L I4", "2.4L Turbo I4"],
+      bodies: ["Wagon", "Convertible"]
+    },
+    "Sebring": {
+      engines: ["2.4L I4", "2.7L V6", "3.5L V6"],
+      bodies: ["Sedan", "Convertible"]
+    },
+    "Aspen": {
+      engines: ["4.7L V8", "5.7L V8"],
+      bodies: ["SUV"]
+    },
+    "Crossfire": {
+      engines: ["3.2L V6", "3.2L Supercharged V6"],
+      bodies: ["Coupe", "Convertible"]
     }
   },
   "Dodge": {
@@ -494,13 +714,33 @@ export const VEHICLE_SPECS = {
       engines: ["2.0L Turbo I4", "1.3L Turbo I4 Plug-in Hybrid"],
       bodies: ["SUV"]
     },
-    "Ram 1500": {
-      engines: ["3.6L V6", "5.7L V8", "3.0L Turbo Diesel V6"],
-      bodies: ["Truck"]
+    "Journey": {
+      engines: ["2.4L I4", "3.6L V6"],
+      bodies: ["SUV"]
     },
-    "Ram 2500": {
-      engines: ["6.4L V8", "6.7L Turbo Diesel I6"],
-      bodies: ["Truck"]
+    "Grand Caravan": {
+      engines: ["3.6L V6", "3.8L V6"],
+      bodies: ["Minivan"]
+    },
+    "Dart": {
+      engines: ["2.0L I4", "2.4L I4", "1.4L Turbo I4"],
+      bodies: ["Sedan"]
+    },
+    "Avenger": {
+      engines: ["2.4L I4", "3.6L V6"],
+      bodies: ["Sedan"]
+    },
+    "Caliber": {
+      engines: ["1.8L I4", "2.0L I4", "2.4L I4"],
+      bodies: ["Hatchback"]
+    },
+    "Nitro": {
+      engines: ["3.7L V6", "4.0L V6"],
+      bodies: ["SUV"]
+    },
+    "Viper": {
+      engines: ["8.4L V10"],
+      bodies: ["Coupe", "Convertible"]
     }
   },
   "Ford": {
@@ -536,6 +776,10 @@ export const VEHICLE_SPECS = {
       engines: ["6.2L V8", "7.3L V8", "6.7L Turbo Diesel V8"],
       bodies: ["Truck"]
     },
+    "F-350": {
+      engines: ["6.2L V8", "7.3L V8", "6.7L Turbo Diesel V8"],
+      bodies: ["Truck"]
+    },
     "Maverick": {
       engines: ["2.5L I4 Hybrid", "2.0L Turbo I4"],
       bodies: ["Truck"]
@@ -559,6 +803,58 @@ export const VEHICLE_SPECS = {
     "Transit": {
       engines: ["3.5L V6", "3.5L Twin-Turbo V6", "2.0L Turbo I4"],
       bodies: ["Van"]
+    },
+    "Transit Connect": {
+      engines: ["2.0L I4", "2.5L I4", "1.6L Turbo I4"],
+      bodies: ["Van"]
+    },
+    "Fusion": {
+      engines: ["1.5L Turbo I4", "2.0L Turbo I4", "2.5L I4", "2.0L I4 Hybrid", "2.0L I4 Plug-in Hybrid", "2.7L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "Focus": {
+      engines: ["2.0L I4", "1.0L Turbo I3", "2.3L Turbo I4", "2.0L Turbo I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Fiesta": {
+      engines: ["1.6L I4", "1.0L Turbo I3", "1.6L Turbo I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Taurus": {
+      engines: ["2.0L Turbo I4", "3.5L V6", "3.5L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "Flex": {
+      engines: ["3.5L V6", "3.5L Twin-Turbo V6"],
+      bodies: ["SUV"]
+    },
+    "C-Max": {
+      engines: ["2.0L I4 Hybrid", "2.0L I4 Plug-in Hybrid"],
+      bodies: ["Hatchback"]
+    },
+    "E-Series": {
+      engines: ["4.6L V8", "5.4L V8", "6.0L V8", "6.8L V10"],
+      bodies: ["Van"]
+    },
+    "EcoSport": {
+      engines: ["1.0L Turbo I3", "2.0L I4"],
+      bodies: ["SUV"]
+    },
+    "Five Hundred": {
+      engines: ["3.0L V6"],
+      bodies: ["Sedan"]
+    },
+    "Freestar": {
+      engines: ["3.9L V6", "4.2L V6"],
+      bodies: ["Minivan"]
+    },
+    "Freestyle": {
+      engines: ["3.0L V6"],
+      bodies: ["SUV"]
+    },
+    "Excursion": {
+      engines: ["5.4L V8", "6.8L V10", "7.3L Turbo Diesel V8"],
+      bodies: ["SUV"]
     }
   },
   "Genesis": {
@@ -574,12 +870,28 @@ export const VEHICLE_SPECS = {
       engines: ["3.3L Twin-Turbo V6", "3.5L Twin-Turbo V6", "5.0L V8"],
       bodies: ["Sedan"]
     },
+    "GV60": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
     "GV70": {
       engines: ["2.5L Turbo I4", "3.5L Twin-Turbo V6", "Dual Motor Electric"],
       bodies: ["SUV"]
     },
     "GV80": {
       engines: ["2.5L Turbo I4", "3.5L Twin-Turbo V6"],
+      bodies: ["SUV"]
+    },
+    "GV80 Coupe": {
+      engines: ["2.5L Turbo I4", "3.5L Twin-Turbo V6"],
+      bodies: ["SUV"]
+    },
+    "Electrified G80": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["Sedan"]
+    },
+    "Electrified GV70": {
+      engines: ["Dual Motor Electric"],
       bodies: ["SUV"]
     }
   },
@@ -600,6 +912,10 @@ export const VEHICLE_SPECS = {
       engines: ["6.6L V8", "6.6L Turbo Diesel V8"],
       bodies: ["Truck"]
     },
+    "Sierra 3500HD": {
+      engines: ["6.6L V8", "6.6L Turbo Diesel V8"],
+      bodies: ["Truck"]
+    },
     "Terrain": {
       engines: ["1.5L Turbo I4", "2.0L Turbo I4"],
       bodies: ["SUV"]
@@ -615,6 +931,14 @@ export const VEHICLE_SPECS = {
     "Hummer EV": {
       engines: ["Dual Motor Electric", "Tri Motor Electric"],
       bodies: ["Truck", "SUV"]
+    },
+    "Envoy": {
+      engines: ["4.2L I6", "5.3L V8"],
+      bodies: ["SUV"]
+    },
+    "Savana": {
+      engines: ["4.3L V6", "4.8L V8", "6.0L V8", "6.6L Turbo Diesel V8"],
+      bodies: ["Van"]
     }
   },
   "Honda": {
@@ -657,6 +981,30 @@ export const VEHICLE_SPECS = {
     "Prologue": {
       engines: ["Single Motor Electric", "Dual Motor Electric"],
       bodies: ["SUV"]
+    },
+    "Insight": {
+      engines: ["1.5L I4 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "Element": {
+      engines: ["2.4L I4"],
+      bodies: ["SUV"]
+    },
+    "Crosstour": {
+      engines: ["2.4L I4", "3.5L V6"],
+      bodies: ["Hatchback"]
+    },
+    "Clarity": {
+      engines: ["1.5L I4 Plug-in Hybrid", "Single Motor Electric", "Hydrogen Fuel Cell"],
+      bodies: ["Sedan"]
+    },
+    "S2000": {
+      engines: ["2.0L I4", "2.2L I4"],
+      bodies: ["Convertible"]
+    },
+    "CR-Z": {
+      engines: ["1.5L I4 Hybrid"],
+      bodies: ["Coupe"]
     }
   },
   "Hyundai": {
@@ -673,7 +1021,11 @@ export const VEHICLE_SPECS = {
       bodies: ["Sedan"]
     },
     "Kona": {
-      engines: ["2.0L I4", "1.6L Turbo I4", "Single Motor Electric"],
+      engines: ["2.0L I4", "1.6L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "Kona Electric": {
+      engines: ["Single Motor Electric"],
       bodies: ["SUV"]
     },
     "Palisade": {
@@ -699,6 +1051,66 @@ export const VEHICLE_SPECS = {
     "Venue": {
       engines: ["1.6L I4"],
       bodies: ["SUV"]
+    },
+    "Accent": {
+      engines: ["1.6L I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Veloster": {
+      engines: ["2.0L I4", "1.6L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Azera": {
+      engines: ["3.3L V6"],
+      bodies: ["Sedan"]
+    },
+    "Genesis Coupe": {
+      engines: ["2.0L Turbo I4", "3.8L V6"],
+      bodies: ["Coupe"]
+    },
+    "Genesis Sedan": {
+      engines: ["3.8L V6", "5.0L V8"],
+      bodies: ["Sedan"]
+    },
+    "Entourage": {
+      engines: ["3.8L V6"],
+      bodies: ["Minivan"]
+    },
+    "Veracruz": {
+      engines: ["3.8L V6"],
+      bodies: ["SUV"]
+    },
+    "Tiburon": {
+      engines: ["2.0L I4", "2.7L V6"],
+      bodies: ["Coupe"]
+    },
+    "Nexo": {
+      engines: ["Hydrogen Fuel Cell"],
+      bodies: ["SUV"]
+    },
+    "Ioniq": {
+      engines: ["1.6L I4 Hybrid", "1.6L I4 Plug-in Hybrid", "Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "Santa Fe XL": {
+      engines: ["3.3L V6"],
+      bodies: ["SUV"]
+    },
+    "Tucson Hybrid": {
+      engines: ["1.6L Turbo I4 Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Santa Fe Hybrid": {
+      engines: ["1.6L Turbo I4 Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Elantra Hybrid": {
+      engines: ["1.6L I4 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "Sonata Hybrid": {
+      engines: ["2.0L I4 Hybrid"],
+      bodies: ["Sedan"]
     }
   },
   "Infiniti": {
@@ -725,6 +1137,70 @@ export const VEHICLE_SPECS = {
     "QX80": {
       engines: ["5.6L V8"],
       bodies: ["SUV"]
+    },
+    "Q40": {
+      engines: ["3.7L V6"],
+      bodies: ["Sedan"]
+    },
+    "Q70": {
+      engines: ["3.7L V6", "5.6L V8", "3.5L V6 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "QX30": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "QX70": {
+      engines: ["3.7L V6", "5.0L V8"],
+      bodies: ["SUV"]
+    },
+    "G35": {
+      engines: ["3.5L V6"],
+      bodies: ["Sedan", "Coupe"]
+    },
+    "G37": {
+      engines: ["3.7L V6"],
+      bodies: ["Sedan", "Coupe", "Convertible"]
+    },
+    "M35": {
+      engines: ["3.5L V6"],
+      bodies: ["Sedan"]
+    },
+    "M37": {
+      engines: ["3.7L V6"],
+      bodies: ["Sedan"]
+    },
+    "M45": {
+      engines: ["4.5L V8"],
+      bodies: ["Sedan"]
+    },
+    "M56": {
+      engines: ["5.6L V8"],
+      bodies: ["Sedan"]
+    },
+    "FX35": {
+      engines: ["3.5L V6"],
+      bodies: ["SUV"]
+    },
+    "FX45": {
+      engines: ["4.5L V8"],
+      bodies: ["SUV"]
+    },
+    "FX50": {
+      engines: ["5.0L V8"],
+      bodies: ["SUV"]
+    },
+    "JX35": {
+      engines: ["3.5L V6"],
+      bodies: ["SUV"]
+    },
+    "EX35": {
+      engines: ["3.5L V6"],
+      bodies: ["SUV"]
+    },
+    "EX37": {
+      engines: ["3.7L V6"],
+      bodies: ["SUV"]
     }
   },
   "Jeep": {
@@ -748,6 +1224,10 @@ export const VEHICLE_SPECS = {
       engines: ["3.6L V6", "5.7L V8"],
       bodies: ["SUV"]
     },
+    "Grand Wagoneer": {
+      engines: ["3.0L Twin-Turbo I6", "6.4L V8"],
+      bodies: ["SUV"]
+    },
     "Renegade": {
       engines: ["1.3L Turbo I4", "2.4L I4"],
       bodies: ["SUV"]
@@ -758,6 +1238,22 @@ export const VEHICLE_SPECS = {
     },
     "Wrangler": {
       engines: ["3.6L V6", "2.0L Turbo I4", "3.0L Turbo Diesel V6", "6.4L V8", "2.0L Turbo I4 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Liberty": {
+      engines: ["2.4L I4", "3.7L V6"],
+      bodies: ["SUV"]
+    },
+    "Patriot": {
+      engines: ["2.0L I4", "2.4L I4"],
+      bodies: ["SUV"]
+    },
+    "Commander": {
+      engines: ["3.7L V6", "4.7L V8", "5.7L V8"],
+      bodies: ["SUV"]
+    },
+    "Grand Cherokee WK": {
+      engines: ["3.7L V6", "4.7L V8", "5.7L V8", "6.1L V8"],
       bodies: ["SUV"]
     }
   },
@@ -801,6 +1297,66 @@ export const VEHICLE_SPECS = {
     "Carnival": {
       engines: ["3.5L V6"],
       bodies: ["Minivan"]
+    },
+    "Optima": {
+      engines: ["2.4L I4", "1.6L Turbo I4", "2.0L Turbo I4", "2.4L I4 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "Rio": {
+      engines: ["1.6L I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Cadenza": {
+      engines: ["3.3L V6"],
+      bodies: ["Sedan"]
+    },
+    "Stinger": {
+      engines: ["2.5L Turbo I4", "3.3L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "Niro": {
+      engines: ["1.6L I4 Hybrid", "1.6L I4 Plug-in Hybrid", "Single Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "Niro EV": {
+      engines: ["Single Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "Sedona": {
+      engines: ["3.3L V6"],
+      bodies: ["Minivan"]
+    },
+    "Sportage Hybrid": {
+      engines: ["1.6L Turbo I4 Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Sorento Hybrid": {
+      engines: ["1.6L Turbo I4 Hybrid"],
+      bodies: ["SUV"]
+    },
+    "K900": {
+      engines: ["3.3L Twin-Turbo V6", "5.0L V8"],
+      bodies: ["Sedan"]
+    },
+    "Amanti": {
+      engines: ["3.5L V6"],
+      bodies: ["Sedan"]
+    },
+    "Borrego": {
+      engines: ["3.8L V6", "4.6L V8"],
+      bodies: ["SUV"]
+    },
+    "Rondo": {
+      engines: ["2.4L I4", "2.7L V6"],
+      bodies: ["Wagon"]
+    },
+    "Spectra": {
+      engines: ["2.0L I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Soul EV": {
+      engines: ["Single Motor Electric"],
+      bodies: ["Hatchback"]
     }
   },
   "Lexus": {
@@ -976,6 +1532,10 @@ export const VEHICLE_SPECS = {
       engines: ["2.5L I4 Hybrid"],
       bodies: ["SUV"]
     },
+    "RX 400h": {
+      engines: ["3.3L V6 Hybrid"],
+      bodies: ["SUV"]
+    },
     "RX 450h": {
       engines: ["3.5L V6 Hybrid"],
       bodies: ["SUV"]
@@ -1015,6 +1575,22 @@ export const VEHICLE_SPECS = {
     "RZ 450e": {
       engines: ["Dual Motor Electric"],
       bodies: ["SUV"]
+    },
+    "CT 200h": {
+      engines: ["1.8L I4 Hybrid"],
+      bodies: ["Hatchback"]
+    },
+    "HS 250h": {
+      engines: ["2.4L I4 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "SC 430": {
+      engines: ["4.3L V8"],
+      bodies: ["Convertible"]
+    },
+    "LFA": {
+      engines: ["4.8L V10"],
+      bodies: ["Coupe"]
     }
   },
   "Lincoln": {
@@ -1033,6 +1609,42 @@ export const VEHICLE_SPECS = {
     "Navigator": {
       engines: ["3.5L Twin-Turbo V6"],
       bodies: ["SUV"]
+    },
+    "Navigator L": {
+      engines: ["3.5L Twin-Turbo V6"],
+      bodies: ["SUV"]
+    },
+    "MKC": {
+      engines: ["2.0L Turbo I4", "2.3L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "MKX": {
+      engines: ["2.7L Twin-Turbo V6", "3.7L V6"],
+      bodies: ["SUV"]
+    },
+    "MKZ": {
+      engines: ["2.0L Turbo I4", "3.0L Twin-Turbo V6", "2.0L I4 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "MKS": {
+      engines: ["3.5L V6", "3.5L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "MKT": {
+      engines: ["3.5L V6", "3.5L Twin-Turbo V6"],
+      bodies: ["SUV"]
+    },
+    "Town Car": {
+      engines: ["4.6L V8"],
+      bodies: ["Sedan"]
+    },
+    "Continental": {
+      engines: ["2.7L Twin-Turbo V6", "3.0L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "LS": {
+      engines: ["3.0L V6", "3.9L V8"],
+      bodies: ["Sedan"]
     }
   },
   "Mazda": {
@@ -1066,6 +1678,42 @@ export const VEHICLE_SPECS = {
     },
     "CX-9": {
       engines: ["2.5L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "Mazda6": {
+      engines: ["2.5L I4", "2.5L Turbo I4"],
+      bodies: ["Sedan"]
+    },
+    "CX-3": {
+      engines: ["2.0L I4"],
+      bodies: ["SUV"]
+    },
+    "CX-7": {
+      engines: ["2.3L Turbo I4", "2.5L I4"],
+      bodies: ["SUV"]
+    },
+    "Mazda5": {
+      engines: ["2.3L I4", "2.5L I4"],
+      bodies: ["Minivan"]
+    },
+    "Mazda2": {
+      engines: ["1.5L I4"],
+      bodies: ["Hatchback"]
+    },
+    "RX-8": {
+      engines: ["1.3L Rotary"],
+      bodies: ["Coupe"]
+    },
+    "MX-5 Miata RF": {
+      engines: ["2.0L I4"],
+      bodies: ["Convertible"]
+    },
+    "Tribute": {
+      engines: ["2.3L I4", "3.0L V6"],
+      bodies: ["SUV"]
+    },
+    "CX-50 Hybrid": {
+      engines: ["2.5L I4 Hybrid"],
       bodies: ["SUV"]
     }
   },
@@ -1205,6 +1853,118 @@ export const VEHICLE_SPECS = {
     "AMG GT 63": {
       engines: ["4.0L Twin-Turbo V8"],
       bodies: ["Sedan"]
+    },
+    "B 250e": {
+      engines: ["Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "CLA 45 AMG": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Sedan"]
+    },
+    "GLA 35 AMG": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "GLA 45 AMG": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "GLK 250": {
+      engines: ["2.1L Turbo Diesel I4"],
+      bodies: ["SUV"]
+    },
+    "GLK 350": {
+      engines: ["3.5L V6"],
+      bodies: ["SUV"]
+    },
+    "ML 350": {
+      engines: ["3.5L V6", "2.1L Turbo Diesel I4"],
+      bodies: ["SUV"]
+    },
+    "ML 550": {
+      engines: ["4.7L Twin-Turbo V8"],
+      bodies: ["SUV"]
+    },
+    "ML 63 AMG": {
+      engines: ["5.5L Twin-Turbo V8"],
+      bodies: ["SUV"]
+    },
+    "GL 450": {
+      engines: ["4.7L Twin-Turbo V8"],
+      bodies: ["SUV"]
+    },
+    "GL 550": {
+      engines: ["4.7L Twin-Turbo V8"],
+      bodies: ["SUV"]
+    },
+    "GL 63 AMG": {
+      engines: ["5.5L Twin-Turbo V8"],
+      bodies: ["SUV"]
+    },
+    "R 350": {
+      engines: ["3.5L V6", "3.0L Turbo Diesel V6"],
+      bodies: ["Wagon"]
+    },
+    "SL 450": {
+      engines: ["3.0L Turbo I6"],
+      bodies: ["Convertible"]
+    },
+    "SL 550": {
+      engines: ["4.7L Twin-Turbo V8"],
+      bodies: ["Convertible"]
+    },
+    "SL 55 AMG": {
+      engines: ["4.0L Twin-Turbo V8"],
+      bodies: ["Convertible"]
+    },
+    "SL 63 AMG": {
+      engines: ["4.0L Twin-Turbo V8"],
+      bodies: ["Convertible"]
+    },
+    "SLK 250": {
+      engines: ["1.8L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "SLK 350": {
+      engines: ["3.5L V6"],
+      bodies: ["Convertible"]
+    },
+    "SLK 55 AMG": {
+      engines: ["5.5L V8"],
+      bodies: ["Convertible"]
+    },
+    "SLC 300": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "SLC 43 AMG": {
+      engines: ["3.0L Twin-Turbo V6"],
+      bodies: ["Convertible"]
+    },
+    "Metris": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Van"]
+    },
+    "Sprinter": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo Diesel V6"],
+      bodies: ["Van"]
+    },
+    "EQB 250+": {
+      engines: ["Single Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "EQB 350": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "EQS SUV 450+": {
+      engines: ["Single Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "EQE SUV 350+": {
+      engines: ["Single Motor Electric"],
+      bodies: ["SUV"]
     }
   },
   "Nissan": {
@@ -1244,6 +2004,10 @@ export const VEHICLE_SPECS = {
       engines: ["2.5L I4", "1.5L Turbo I3"],
       bodies: ["SUV"]
     },
+    "Rogue Sport": {
+      engines: ["2.0L I4"],
+      bodies: ["SUV"]
+    },
     "Sentra": {
       engines: ["2.0L I4"],
       bodies: ["Sedan"]
@@ -1252,17 +2016,65 @@ export const VEHICLE_SPECS = {
       engines: ["5.6L V8"],
       bodies: ["Truck"]
     },
+    "Titan XD": {
+      engines: ["5.6L V8", "5.0L Turbo Diesel V8"],
+      bodies: ["Truck"]
+    },
     "Versa": {
       engines: ["1.6L I4"],
       bodies: ["Sedan"]
+    },
+    "Versa Note": {
+      engines: ["1.6L I4"],
+      bodies: ["Hatchback"]
     },
     "Z": {
       engines: ["3.0L Twin-Turbo V6"],
       bodies: ["Coupe"]
     },
+    "370Z": {
+      engines: ["3.7L V6"],
+      bodies: ["Coupe", "Convertible"]
+    },
+    "350Z": {
+      engines: ["3.5L V6"],
+      bodies: ["Coupe", "Convertible"]
+    },
     "Ariya": {
       engines: ["Single Motor Electric", "Dual Motor Electric"],
       bodies: ["SUV"]
+    },
+    "GT-R": {
+      engines: ["3.8L Twin-Turbo V6"],
+      bodies: ["Coupe"]
+    },
+    "Juke": {
+      engines: ["1.6L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "Quest": {
+      engines: ["3.5L V6"],
+      bodies: ["Minivan"]
+    },
+    "Cube": {
+      engines: ["1.8L I4"],
+      bodies: ["Wagon"]
+    },
+    "Xterra": {
+      engines: ["4.0L V6"],
+      bodies: ["SUV"]
+    },
+    "NV200": {
+      engines: ["2.0L I4"],
+      bodies: ["Van"]
+    },
+    "NV Cargo": {
+      engines: ["4.0L V6", "5.6L V8"],
+      bodies: ["Van"]
+    },
+    "NV Passenger": {
+      engines: ["5.6L V8"],
+      bodies: ["Van"]
     }
   },
   "Porsche": {
@@ -1271,6 +2083,10 @@ export const VEHICLE_SPECS = {
       bodies: ["Coupe", "Convertible"]
     },
     "Cayenne": {
+      engines: ["3.0L Turbo V6", "4.0L Twin-Turbo V8", "3.0L Turbo V6 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Cayenne Coupe": {
       engines: ["3.0L Turbo V6", "4.0L Twin-Turbo V8", "3.0L Turbo V6 Plug-in Hybrid"],
       bodies: ["SUV"]
     },
@@ -1286,6 +2102,10 @@ export const VEHICLE_SPECS = {
       engines: ["Single Motor Electric", "Dual Motor Electric"],
       bodies: ["Sedan", "Wagon"]
     },
+    "Taycan Cross Turismo": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
+      bodies: ["Wagon"]
+    },
     "718 Boxster": {
       engines: ["2.0L Turbo Flat-4", "2.5L Turbo Flat-4", "4.0L Flat-6"],
       bodies: ["Convertible"]
@@ -1300,6 +2120,10 @@ export const VEHICLE_SPECS = {
       engines: ["3.6L V6", "5.7L V8", "3.0L Turbo Diesel V6", "3.0L Twin-Turbo I6"],
       bodies: ["Truck"]
     },
+    "1500 Classic": {
+      engines: ["3.6L V6", "5.7L V8"],
+      bodies: ["Truck"]
+    },
     "2500": {
       engines: ["6.4L V8", "6.7L Turbo Diesel I6"],
       bodies: ["Truck"]
@@ -1311,6 +2135,14 @@ export const VEHICLE_SPECS = {
     "ProMaster": {
       engines: ["3.6L V6"],
       bodies: ["Van"]
+    },
+    "ProMaster City": {
+      engines: ["2.4L I4"],
+      bodies: ["Van"]
+    },
+    "1500 REV": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["Truck"]
     }
   },
   "Subaru": {
@@ -1349,6 +2181,26 @@ export const VEHICLE_SPECS = {
     "BRZ": {
       engines: ["2.4L Flat-4", "2.0L Flat-4"],
       bodies: ["Coupe"]
+    },
+    "STI": {
+      engines: ["2.5L Turbo Flat-4"],
+      bodies: ["Sedan"]
+    },
+    "Tribeca": {
+      engines: ["3.0L Flat-6", "3.6L Flat-6"],
+      bodies: ["SUV"]
+    },
+    "Baja": {
+      engines: ["2.5L Flat-4", "2.5L Turbo Flat-4"],
+      bodies: ["Truck"]
+    },
+    "SVX": {
+      engines: ["3.3L Flat-6"],
+      bodies: ["Coupe"]
+    },
+    "Forester Wilderness": {
+      engines: ["2.5L Flat-4"],
+      bodies: ["SUV"]
     }
   },
   "Tesla": {
@@ -1393,6 +2245,10 @@ export const VEHICLE_SPECS = {
     "Corolla Cross": {
       engines: ["2.0L I4", "2.0L I4 Hybrid"],
       bodies: ["SUV"]
+    },
+    "Corolla Hatchback": {
+      engines: ["2.0L I4"],
+      bodies: ["Hatchback"]
     },
     "Grand Highlander": {
       engines: ["2.4L Turbo I4", "2.5L I4 Hybrid"],
@@ -1442,6 +2298,10 @@ export const VEHICLE_SPECS = {
       engines: ["2.5L I4 Hybrid", "2.4L Turbo I4 Hybrid"],
       bodies: ["Sedan"]
     },
+    "Crown Signia": {
+      engines: ["2.5L I4 Hybrid"],
+      bodies: ["SUV"]
+    },
     "GR Corolla": {
       engines: ["1.6L Turbo I3"],
       bodies: ["Hatchback"]
@@ -1449,6 +2309,34 @@ export const VEHICLE_SPECS = {
     "Supra": {
       engines: ["2.0L Turbo I4", "3.0L Turbo I6"],
       bodies: ["Coupe"]
+    },
+    "Avalon": {
+      engines: ["3.5L V6", "2.5L I4 Hybrid"],
+      bodies: ["Sedan"]
+    },
+    "Yaris": {
+      engines: ["1.5L I4"],
+      bodies: ["Sedan", "Hatchback"]
+    },
+    "Yaris iA": {
+      engines: ["1.5L I4"],
+      bodies: ["Sedan"]
+    },
+    "Matrix": {
+      engines: ["1.8L I4", "2.4L I4"],
+      bodies: ["Wagon"]
+    },
+    "FJ Cruiser": {
+      engines: ["4.0L V6"],
+      bodies: ["SUV"]
+    },
+    "C-HR": {
+      engines: ["2.0L I4"],
+      bodies: ["SUV"]
+    },
+    "Mirai": {
+      engines: ["Hydrogen Fuel Cell"],
+      bodies: ["Sedan"]
     }
   },
   "Volkswagen": {
@@ -1484,6 +2372,10 @@ export const VEHICLE_SPECS = {
       engines: ["1.4L Turbo I4", "1.5L Turbo I4", "2.0L Turbo I4"],
       bodies: ["Sedan"]
     },
+    "Jetta GLI": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Sedan"]
+    },
     "Taos": {
       engines: ["1.5L Turbo I4"],
       bodies: ["SUV"]
@@ -1494,6 +2386,42 @@ export const VEHICLE_SPECS = {
     },
     "Arteon": {
       engines: ["2.0L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Passat": {
+      engines: ["1.8L Turbo I4", "2.0L Turbo I4", "3.6L V6"],
+      bodies: ["Sedan"]
+    },
+    "CC": {
+      engines: ["2.0L Turbo I4", "3.6L V6"],
+      bodies: ["Sedan"]
+    },
+    "Beetle": {
+      engines: ["1.8L Turbo I4", "2.0L Turbo I4", "2.0L Turbo Diesel I4"],
+      bodies: ["Coupe", "Convertible"]
+    },
+    "Touareg": {
+      engines: ["3.0L Turbo Diesel V6", "3.6L V6", "4.2L V8"],
+      bodies: ["SUV"]
+    },
+    "Routan": {
+      engines: ["3.6L V6", "4.0L V6"],
+      bodies: ["Minivan"]
+    },
+    "Eos": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "Golf SportWagen": {
+      engines: ["1.8L Turbo I4"],
+      bodies: ["Wagon"]
+    },
+    "Golf Alltrack": {
+      engines: ["1.8L Turbo I4"],
+      bodies: ["Wagon"]
+    },
+    "e-Golf": {
+      engines: ["Single Motor Electric"],
       bodies: ["Hatchback"]
     }
   },
@@ -1510,12 +2438,24 @@ export const VEHICLE_SPECS = {
       engines: ["2.0L Turbo I4", "2.0L Turbo/Supercharged I4", "2.0L Turbo I4 Plug-in Hybrid"],
       bodies: ["Wagon"]
     },
+    "V60 Cross Country": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Wagon"]
+    },
     "V90": {
       engines: ["2.0L Turbo/Supercharged I4"],
       bodies: ["Wagon"]
     },
+    "V90 Cross Country": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Wagon"]
+    },
     "XC40": {
       engines: ["2.0L Turbo I4", "Single Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "XC40 Recharge": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
       bodies: ["SUV"]
     },
     "XC60": {
@@ -1537,6 +2477,394 @@ export const VEHICLE_SPECS = {
     "EX90": {
       engines: ["Dual Motor Electric"],
       bodies: ["SUV"]
+    },
+    "S40": {
+      engines: ["2.4L I5", "2.5L Turbo I5"],
+      bodies: ["Sedan"]
+    },
+    "S80": {
+      engines: ["3.2L I6", "3.0L Turbo I6", "4.4L V8"],
+      bodies: ["Sedan"]
+    },
+    "C30": {
+      engines: ["2.5L Turbo I5"],
+      bodies: ["Hatchback"]
+    },
+    "C70": {
+      engines: ["2.5L Turbo I5"],
+      bodies: ["Convertible"]
+    },
+    "XC70": {
+      engines: ["3.2L I6", "3.0L Turbo I6"],
+      bodies: ["Wagon"]
+    }
+  },
+  "Mitsubishi": {
+    "Outlander": {
+      engines: ["2.4L I4", "2.5L I4", "3.0L V6"],
+      bodies: ["SUV"]
+    },
+    "Outlander Sport": {
+      engines: ["2.0L I4", "2.4L I4"],
+      bodies: ["SUV"]
+    },
+    "Outlander PHEV": {
+      engines: ["2.4L I4 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Eclipse Cross": {
+      engines: ["1.5L Turbo I4", "2.4L I4 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Mirage": {
+      engines: ["1.2L I3"],
+      bodies: ["Hatchback"]
+    },
+    "Mirage G4": {
+      engines: ["1.2L I3"],
+      bodies: ["Sedan"]
+    },
+    "Lancer": {
+      engines: ["2.0L I4", "2.4L I4", "2.0L Turbo I4"],
+      bodies: ["Sedan"]
+    },
+    "Eclipse": {
+      engines: ["2.4L I4", "3.0L V6", "3.8L V6"],
+      bodies: ["Coupe", "Convertible"]
+    },
+    "Galant": {
+      engines: ["2.4L I4", "3.8L V6"],
+      bodies: ["Sedan"]
+    },
+    "Endeavor": {
+      engines: ["3.8L V6"],
+      bodies: ["SUV"]
+    },
+    "Raider": {
+      engines: ["3.7L V6", "4.7L V8"],
+      bodies: ["Truck"]
+    },
+    "i-MiEV": {
+      engines: ["Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "Montero": {
+      engines: ["3.8L V6"],
+      bodies: ["SUV"]
+    },
+    "Montero Sport": {
+      engines: ["3.0L V6", "3.5L V6"],
+      bodies: ["SUV"]
+    }
+  },
+  "Land Rover": {
+    "Range Rover": {
+      engines: ["3.0L Turbo I6", "4.4L Twin-Turbo V8", "3.0L Turbo I6 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Range Rover Sport": {
+      engines: ["3.0L Turbo I6", "4.4L Twin-Turbo V8", "3.0L Turbo I6 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Range Rover Velar": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo I6"],
+      bodies: ["SUV"]
+    },
+    "Range Rover Evoque": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "Defender": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo I6", "5.0L Supercharged V8"],
+      bodies: ["SUV"]
+    },
+    "Defender 130": {
+      engines: ["3.0L Turbo I6"],
+      bodies: ["SUV"]
+    },
+    "Discovery": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo I6", "3.0L Turbo Diesel V6"],
+      bodies: ["SUV"]
+    },
+    "Discovery Sport": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "Freelander": {
+      engines: ["2.5L V6", "3.2L I6"],
+      bodies: ["SUV"]
+    },
+    "LR2": {
+      engines: ["3.2L I6", "2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "LR3": {
+      engines: ["4.0L V6", "4.4L V8"],
+      bodies: ["SUV"]
+    },
+    "LR4": {
+      engines: ["3.0L Turbo Diesel V6", "5.0L V8"],
+      bodies: ["SUV"]
+    }
+  },
+  "Jaguar": {
+    "F-PACE": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo I6", "5.0L Supercharged V8"],
+      bodies: ["SUV"]
+    },
+    "E-PACE": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "I-PACE": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "F-TYPE": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo I6", "5.0L Supercharged V8"],
+      bodies: ["Coupe", "Convertible"]
+    },
+    "XE": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "XF": {
+      engines: ["2.0L Turbo I4", "3.0L Turbo V6", "5.0L Supercharged V8"],
+      bodies: ["Sedan"]
+    },
+    "XJ": {
+      engines: ["3.0L Turbo V6", "5.0L Supercharged V8"],
+      bodies: ["Sedan"]
+    },
+    "XK": {
+      engines: ["5.0L V8", "5.0L Supercharged V8"],
+      bodies: ["Coupe", "Convertible"]
+    },
+    "S-Type": {
+      engines: ["3.0L V6", "4.0L V8", "4.2L Supercharged V8"],
+      bodies: ["Sedan"]
+    },
+    "X-Type": {
+      engines: ["2.5L V6", "3.0L V6"],
+      bodies: ["Sedan", "Wagon"]
+    }
+  },
+  "Alfa Romeo": {
+    "Giulia": {
+      engines: ["2.0L Turbo I4", "2.9L Twin-Turbo V6"],
+      bodies: ["Sedan"]
+    },
+    "Stelvio": {
+      engines: ["2.0L Turbo I4", "2.9L Twin-Turbo V6"],
+      bodies: ["SUV"]
+    },
+    "Tonale": {
+      engines: ["1.3L Turbo I4 Plug-in Hybrid", "2.0L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "4C": {
+      engines: ["1.75L Turbo I4"],
+      bodies: ["Coupe"]
+    },
+    "4C Spider": {
+      engines: ["1.75L Turbo I4"],
+      bodies: ["Convertible"]
+    }
+  },
+  "Fiat": {
+    "500": {
+      engines: ["1.4L I4", "1.4L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "500e": {
+      engines: ["Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "500X": {
+      engines: ["1.4L Turbo I4", "2.4L I4"],
+      bodies: ["SUV"]
+    },
+    "500L": {
+      engines: ["1.4L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "500c": {
+      engines: ["1.4L I4", "1.4L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "124 Spider": {
+      engines: ["1.4L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "500 Abarth": {
+      engines: ["1.4L Turbo I4"],
+      bodies: ["Hatchback", "Convertible"]
+    }
+  },
+  "Mini": {
+    "Cooper": {
+      engines: ["1.5L Turbo I3", "2.0L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Cooper S": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Cooper Hardtop 2 Door": {
+      engines: ["1.5L Turbo I3", "2.0L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Cooper Hardtop 4 Door": {
+      engines: ["1.5L Turbo I3", "2.0L Turbo I4"],
+      bodies: ["Hatchback"]
+    },
+    "Cooper Convertible": {
+      engines: ["1.5L Turbo I3", "2.0L Turbo I4"],
+      bodies: ["Convertible"]
+    },
+    "Cooper Clubman": {
+      engines: ["1.5L Turbo I3", "2.0L Turbo I4"],
+      bodies: ["Wagon"]
+    },
+    "Cooper Countryman": {
+      engines: ["1.5L Turbo I3", "2.0L Turbo I4", "1.5L Turbo I3 Plug-in Hybrid"],
+      bodies: ["SUV"]
+    },
+    "Cooper Paceman": {
+      engines: ["1.6L Turbo I4"],
+      bodies: ["SUV"]
+    },
+    "John Cooper Works": {
+      engines: ["2.0L Turbo I4"],
+      bodies: ["Hatchback", "Convertible", "SUV", "Wagon"]
+    },
+    "Cooper Coupe": {
+      engines: ["1.6L I4", "1.6L Turbo I4"],
+      bodies: ["Coupe"]
+    },
+    "Cooper Roadster": {
+      engines: ["1.6L I4", "1.6L Turbo I4"],
+      bodies: ["Convertible"]
+    }
+  },
+  "Maserati": {
+    "Ghibli": {
+      engines: ["3.0L Twin-Turbo V6", "3.8L Twin-Turbo V8"],
+      bodies: ["Sedan"]
+    },
+    "Levante": {
+      engines: ["3.0L Twin-Turbo V6", "3.8L Twin-Turbo V8"],
+      bodies: ["SUV"]
+    },
+    "Quattroporte": {
+      engines: ["3.0L Twin-Turbo V6", "3.8L Twin-Turbo V8"],
+      bodies: ["Sedan"]
+    },
+    "MC20": {
+      engines: ["3.0L Twin-Turbo V6"],
+      bodies: ["Coupe", "Convertible"]
+    },
+    "GranTurismo": {
+      engines: ["3.0L Twin-Turbo V6", "Dual Motor Electric"],
+      bodies: ["Coupe"]
+    },
+    "Grecale": {
+      engines: ["2.0L Turbo I4", "3.0L Twin-Turbo V6", "Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "GranCabrio": {
+      engines: ["3.0L Twin-Turbo V6", "Dual Motor Electric"],
+      bodies: ["Convertible"]
+    }
+  },
+  "Rivian": {
+    "R1T": {
+      engines: ["Dual Motor Electric", "Tri Motor Electric"],
+      bodies: ["Truck"]
+    },
+    "R1S": {
+      engines: ["Dual Motor Electric", "Tri Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "R2": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "R3": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    }
+  },
+  "Lucid": {
+    "Air": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
+      bodies: ["Sedan"]
+    },
+    "Gravity": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    }
+  },
+  "Polestar": {
+    "Polestar 2": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
+      bodies: ["Sedan"]
+    },
+    "Polestar 3": {
+      engines: ["Dual Motor Electric"],
+      bodies: ["SUV"]
+    },
+    "Polestar 4": {
+      engines: ["Single Motor Electric", "Dual Motor Electric"],
+      bodies: ["SUV"]
+    }
+  },
+  "smart": {
+    "fortwo": {
+      engines: ["1.0L I3", "0.9L Turbo I3"],
+      bodies: ["Hatchback"]
+    },
+    "fortwo Electric Drive": {
+      engines: ["Single Motor Electric"],
+      bodies: ["Hatchback"]
+    },
+    "fortwo Cabrio": {
+      engines: ["1.0L I3", "0.9L Turbo I3"],
+      bodies: ["Convertible"]
+    }
+  },
+  "Scion": {
+    "tC": {
+      engines: ["2.5L I4"],
+      bodies: ["Coupe"]
+    },
+    "xB": {
+      engines: ["1.5L I4", "2.4L I4"],
+      bodies: ["Wagon"]
+    },
+    "xD": {
+      engines: ["1.8L I4"],
+      bodies: ["Hatchback"]
+    },
+    "xA": {
+      engines: ["1.5L I4"],
+      bodies: ["Hatchback"]
+    },
+    "FR-S": {
+      engines: ["2.0L Flat-4"],
+      bodies: ["Coupe"]
+    },
+    "iA": {
+      engines: ["1.5L I4"],
+      bodies: ["Sedan"]
+    },
+    "iM": {
+      engines: ["1.8L I4"],
+      bodies: ["Hatchback"]
+    },
+    "iQ": {
+      engines: ["1.3L I4"],
+      bodies: ["Hatchback"]
     }
   }
 };
