@@ -1129,29 +1129,13 @@ function NewClaimView({ onSubmit, initialType }) {
 
         // --- Run all pre-lookups in parallel ---
         // 1. OEM/Aftermarket prices (Gemini)
+        // Compact prompt: keys list + one example, not repeated structure
         const pricePromise = geminiTextCall({
-          contents: [{ parts: [{ text: `For a ${vYear} ${vMake} ${vModel}, provide realistic OEM and aftermarket parts prices in USD. Return ONLY a JSON object, no markdown:
-{
-  "front_bumper": { "oem": [low, high], "aftermarket": [low, high] },
-  "rear_bumper": { "oem": [low, high], "aftermarket": [low, high] },
-  "hood": { "oem": [low, high], "aftermarket": [low, high] },
-  "fender": { "oem": [low, high], "aftermarket": [low, high] },
-  "door": { "oem": [low, high], "aftermarket": [low, high] },
-  "headlight": { "oem": [low, high], "aftermarket": [low, high] },
-  "taillight": { "oem": [low, high], "aftermarket": [low, high] },
-  "mirror": { "oem": [low, high], "aftermarket": [low, high] },
-  "windshield": { "oem": [low, high], "aftermarket": [low, high] },
-  "grille": { "oem": [low, high], "aftermarket": [low, high] },
-  "quarter_panel": { "oem": [low, high], "aftermarket": [low, high] },
-  "trunk_tailgate": { "oem": [low, high], "aftermarket": [low, high] },
-  "seat_front": { "oem": [low, high], "aftermarket": [low, high] },
-  "dashboard": { "oem": [low, high], "aftermarket": [low, high] },
-  "steering_wheel": { "oem": [low, high], "aftermarket": [low, high] },
-  "radiator": { "oem": [low, high], "aftermarket": [low, high] },
-  "ac_condenser": { "oem": [low, high], "aftermarket": [low, high] }
-}
-Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-party compatible parts. If aftermarket not available, use null.` }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+          contents: [{ parts: [{ text: `${vYear} ${vMake} ${vModel} parts prices USD. JSON only, no markdown.
+Keys: front_bumper,rear_bumper,hood,fender,door,headlight,taillight,mirror,windshield,grille,quarter_panel,trunk_tailgate,radiator,ac_condenser
+Each: {"o":[low,high],"a":[low,high]} (o=OEM,a=aftermarket,null if N/A)
+Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 800 },
         }).catch(() => null);
 
         // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
@@ -1168,20 +1152,8 @@ Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-part
 
         // Gemini fallback: only if no cache AND no MarketCheck key
         const acvGeminiPromise = (!acvData && !mcKey) ? geminiTextCall({
-          contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}?
-
-Return ONLY a JSON object, no markdown:
-{
-  "acv_low": number,
-  "acv_high": number,
-  "acv_mid": number,
-  "condition_assumed": "good|fair|excellent",
-  "mileage_adjustment": "Description of how mileage affects value",
-  "source_basis": "Brief note on what this estimate is based on (e.g. KBB, Edmunds, NADA ranges)"
-}
-
-Consider: year/make/model, typical depreciation, current used car market prices, condition, and mileage. ACV = what the vehicle was worth BEFORE the accident (fair market value for a comparable vehicle in similar condition). Be realistic — use actual market data.` }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 512 },
+          contents: [{ parts: [{ text: `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}` }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 256 },
         }).catch(() => null) : Promise.resolve(null);
 
         const [priceLookupRes, marketCheckRes, acvGeminiRes] = await Promise.all([pricePromise, marketCheckPromise, acvGeminiPromise]);
@@ -1193,7 +1165,12 @@ Consider: year/make/model, typical depreciation, current used car market prices,
             const priceText = priceLookupData.candidates?.[0]?.content?.parts?.[0]?.text || "";
             const cleanJson = priceText.replace(/```json\n?|```\n?/g, "").trim();
             try {
-              const prices = JSON.parse(cleanJson);
+              const rawPrices = JSON.parse(cleanJson);
+              // Normalize compact keys (o→oem, a→aftermarket) if needed
+              const prices = {};
+              for (const [k, v] of Object.entries(rawPrices)) {
+                prices[k] = { oem: v.oem || v.o || null, aftermarket: v.aftermarket || v.a || null };
+              }
               modelPricingContext = `\nMODEL-SPECIFIC OEM/AFTERMARKET PRICES for ${vYear} ${vMake} ${vModel} (use these as primary price reference):\n${JSON.stringify(prices, null, 2)}\n`;
             } catch { /* ignore parse errors */ }
           }
@@ -1262,8 +1239,8 @@ Consider: year/make/model, typical depreciation, current used car market prices,
             try {
               // If we had MarketCheck key but it returned no/few results, try Gemini now
               const geminiRes = acvGeminiRes || (mcKey ? await geminiTextCall({
-                contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}? Return ONLY JSON: {"acv_low":number,"acv_high":number,"acv_mid":number,"condition_assumed":"good|fair|excellent","mileage_adjustment":"...","source_basis":"..."}` }] }],
-                generationConfig: { temperature: 0, maxOutputTokens: 512 },
+                contents: [{ parts: [{ text: `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}` }] }],
+                generationConfig: { temperature: 0, maxOutputTokens: 256 },
               }).catch(() => null) : null);
               if (geminiRes?.ok) {
                 const gData = await geminiRes.json();
