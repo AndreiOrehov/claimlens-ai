@@ -1102,18 +1102,27 @@ function NewClaimView({ onSubmit, initialType }) {
           }
         } catch { /* cache miss */ }
 
-        // --- Gemini helper with auto-fallback (2.5-flash → 2.0-flash) ---
+        // --- Gemini helper with retry + model fallback ---
+        // Retries same model 2x with backoff, then falls back to next model
         const geminiTextCall = async (body) => {
           const key = import.meta.env.VITE_GEMINI_API_KEY;
           const models = ["gemini-2.5-flash", "gemini-flash-latest"];
           for (const model of models) {
-            try {
-              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-              });
-              if (res.ok) return res;
-              console.warn(`Gemini ${model}: ${res.status}, trying next...`);
-            } catch (e) { console.warn(`Gemini ${model} failed:`, e.message); }
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt)); // 1.5s, 3s backoff
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                });
+                if (res.ok) return res;
+                if (res.status === 429 || res.status === 503) {
+                  console.warn(`Gemini ${model}: ${res.status}, retry ${attempt + 1}/3...`);
+                  continue; // retry same model
+                }
+                console.warn(`Gemini ${model}: ${res.status}, trying next model...`);
+                break; // non-retryable error → try next model
+              } catch (e) { console.warn(`Gemini ${model} attempt ${attempt + 1} failed:`, e.message); }
+            }
           }
           return null;
         };
