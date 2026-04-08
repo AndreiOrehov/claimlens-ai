@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER, getPartPrice } from "./pricing-db.js";
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
-import { PARTS_CATALOG_PROMPT } from "./parts-catalog.js";
+import { PARTS_CATALOG_PROMPT, ALL_PARTS } from "./parts-catalog.js";
 import { LABOR_TIMES, getLaborHours, getRefinishHours, getClassMultiplier } from "./labor-times.js";
 
 // ============================================================
@@ -1563,7 +1563,7 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
   "confidence": 0.0-1.0,
   "damages": [
     {
-      "component": "Specific part name (e.g. 'Front Bumper Cover', 'Fender LH', 'Headlamp Assy RH')",
+      "component": "MUST be from CLOSED PARTS VOCABULARY in snake_case (e.g. 'front_bumper_cover', 'front_fender_LH', 'headlamp_assembly_RH')",
       "operation": "R&R|R&I|Repair|Refinish|Blend|Sublet",
       "description": "What happened — describe SPECIFIC visual evidence",
       "severity": "minor|moderate|severe",
@@ -1636,7 +1636,15 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
   "repair_vs_replace": "repair|replace|needs_inspection"
 }`}
 
-STANDARDIZED PARTS CATALOG — You MUST use component names from this list. Do NOT invent names. Pick the closest match. Add "LH" (left) or "RH" (right) suffix for sided parts.
+CLOSED PARTS VOCABULARY (MANDATORY):
+You MUST use ONLY component names from the list below. This is a CLOSED vocabulary — do NOT invent, paraphrase, or abbreviate names.
+Rules:
+- Use the EXACT catalog name in snake_case (e.g. "front_bumper_cover", NOT "Front Bumper Cover" or "Bumper")
+- For sided parts, append "_LH" or "_RH" (e.g. "headlamp_assembly_LH", "front_fender_RH")
+- If a damaged part is not in this list, use the CLOSEST match from the list
+- NEVER use free-form names like "Grille Assembly" — use "grille_assembly"
+- NEVER use generic names like "bumper" — use "front_bumper_cover" or "rear_bumper_cover"
+
 ${PARTS_CATALOG_PROMPT}
 
 MITCHELL-STYLE ESTIMATE RULES (for auto claims):
@@ -1699,7 +1707,10 @@ GENERAL ACCURACY RULES:
 
       const geminiRequestBody = JSON.stringify({
         contents: [{ parts: geminiParts }],
-        generationConfig: { temperature: 0 },
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: "application/json",
+        },
       });
 
       const NUM_RUNS = 3;
@@ -1864,6 +1875,34 @@ GENERAL ACCURACY RULES:
               if (bestEntry.surface) merged.surface = bestEntry.surface;
               if (bestEntry.quantity) { merged.quantity = bestEntry.quantity; merged.unit = bestEntry.unit; merged.unit_cost_low = bestEntry.unit_cost_low; merged.unit_cost_high = bestEntry.unit_cost_high; }
               mergedDamages.push(merged);
+            }
+          }
+        }
+
+        // --- Normalize component names to catalog entries ---
+        // Gemini may return "Front Bumper Cover" instead of "front_bumper_cover"
+        if (type === "auto") {
+          const catalogSet = new Set(ALL_PARTS);
+          for (const d of mergedDamages) {
+            if (!d.component) continue;
+            // Strip side suffix, normalize to snake_case
+            const raw = d.component.toLowerCase().replace(/[\s\-]+/g, "_").replace(/[^a-z0-9_]/g, "");
+            const side = raw.match(/_(lh|rh|left|right)$/)?.[1];
+            const base = raw.replace(/_(lh|rh|left|right)$/, "");
+            const sideSuffix = side === "lh" || side === "left" ? "_LH" : side === "rh" || side === "right" ? "_RH" : "";
+            if (catalogSet.has(base)) {
+              d.component = base + sideSuffix;
+            } else {
+              // Fuzzy: find best catalog match by word overlap
+              let bestMatch = null, bestScore = 0;
+              const baseWords = base.split("_").filter(w => w.length > 1);
+              for (const cat of ALL_PARTS) {
+                const catWords = cat.split("_");
+                const shared = baseWords.filter(w => catWords.includes(w)).length;
+                const score = shared / Math.max(baseWords.length, catWords.length);
+                if (score > bestScore && score >= 0.5) { bestScore = score; bestMatch = cat; }
+              }
+              if (bestMatch) d.component = bestMatch + sideSuffix;
             }
           }
         }
