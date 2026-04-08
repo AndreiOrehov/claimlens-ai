@@ -964,15 +964,23 @@ function NewClaimView({ onSubmit, initialType }) {
     setClaimState("");
   };
 
-  // Cascading vehicle logic
+  // Cascading vehicle logic: Make → Year → Model
   const makes = Object.keys(VEHICLE_DB).sort();
-  const models = vMake ? Object.keys(VEHICLE_DB[vMake]).sort() : [];
-  const yearRange = (vMake && vModel && VEHICLE_DB[vMake]?.[vModel]) ? VEHICLE_DB[vMake][vModel] : null;
-  const years = yearRange ? Array.from({ length: yearRange[1] - yearRange[0] + 1 }, (_, i) => (yearRange[1] - i).toString()) : [];
+  // All years across all models for selected make
+  const years = vMake ? (() => {
+    const ySet = new Set();
+    for (const [, range] of Object.entries(VEHICLE_DB[vMake])) {
+      for (let y = range[0]; y <= range[1]; y++) ySet.add(y);
+    }
+    return Array.from(ySet).sort((a, b) => b - a).map(String);
+  })() : [];
+  // Models available in selected year
+  const models = (vMake && vYear) ? Object.entries(VEHICLE_DB[vMake])
+    .filter(([, range]) => +vYear >= range[0] && +vYear <= range[1])
+    .map(([name]) => name).sort() : [];
 
-  // Reset model when make changes
-  const handleMakeChange = (val) => { setVMake(val); setVModel(""); setVYear(""); };
-  const handleModelChange = (val) => { setVModel(val); setVYear(""); };
+  const handleMakeChange = (val) => { setVMake(val); setVYear(""); setVModel(""); };
+  const handleYearChange = (val) => { setVYear(val); setVModel(""); };
 
   const extractVideoFrames = (file, maxFrames = 8) => {
     return new Promise((resolve) => {
@@ -1940,10 +1948,10 @@ GENERAL ACCURACY RULES:
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <Select label="Make *" value={vMake} onChange={handleMakeChange} options={makes} placeholder="Select make..." />
-            <Select label="Model *" value={vModel} onChange={handleModelChange} options={models} placeholder={vMake ? "Select model..." : "Select make first"} disabled={!vMake} />
+            <Select label="Year *" value={vYear} onChange={handleYearChange} options={years} placeholder={vMake ? "Select year..." : "Select make first"} disabled={!vMake} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
-            <Select label="Year *" value={vYear} onChange={setVYear} options={years} placeholder={vModel ? "Select year..." : "Select model first"} disabled={!vModel} />
+            <Select label="Model *" value={vModel} onChange={setVModel} options={models} placeholder={vYear ? "Select model..." : "Select year first"} disabled={!vYear} />
             <Input label="Mileage (optional)" value={vMileage} onChange={setVMileage} placeholder="e.g. 85000" type="number" />
             <Select label="State *" value={claimState} onChange={setClaimState} options={US_STATES} placeholder="Select state..." />
           </div>
