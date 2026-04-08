@@ -1073,7 +1073,20 @@ function NewClaimView({ onSubmit, initialType }) {
       let acvContext = "";
       let acvData = null; // { low, high, mileage_factor }
       if (type === "auto" && vMake && vModel && vYear) {
-        // Run both lookups in parallel
+        // Check ACV cache first (keyed by year+make+model+mileage bucket, TTL 7 days)
+        const mileageBucket = vMileage ? Math.round(parseInt(vMileage) / 10000) * 10000 : 0;
+        const acvCacheKey = `cl_acv_${vYear}_${vMake}_${vModel}_${mileageBucket}_${claimState || ""}`.toLowerCase().replace(/\s+/g, "_");
+        try {
+          const cached = JSON.parse(localStorage.getItem(acvCacheKey));
+          if (cached && Date.now() - cached._ts < 7 * 24 * 60 * 60 * 1000) {
+            acvData = cached;
+            acvContext = `\nVEHICLE ACV (Actual Cash Value): $${acvData.acv_low?.toLocaleString()} – $${acvData.acv_high?.toLocaleString()} (mid: $${acvData.acv_mid?.toLocaleString()}). Condition assumed: ${acvData.condition_assumed}. ${acvData.mileage_adjustment || ""}\nUse this ACV to determine total loss threshold: if total repair cost exceeds 70-75% of ACV, recommend total loss.\n`;
+            console.log("ACV loaded from cache:", acvData.acv_mid);
+          }
+        } catch { /* cache miss */ }
+
+        // --- Run all pre-lookups in parallel ---
+        // 1. OEM/Aftermarket prices (Gemini)
         const pricePromise = fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
           {
@@ -1106,13 +1119,24 @@ Use real market data. OEM = genuine manufacturer parts. Aftermarket = third-part
           }
         ).catch(() => null);
 
-        const acvPromise = fetch(
+        // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
+        const mcKey = import.meta.env.VITE_MARKETCHECK_API_KEY;
+        const stateZip = US_STATES.find(s => s.value === claimState);
+        const zipCode = stateZip?.zip || "90210"; // fallback zip
+
+        // MarketCheck: real market data from dealer listings
+        const marketCheckPromise = (!acvData && mcKey) ? fetch(
+          `https://api.marketcheck.com/v2/stats/car/active?api_key=${mcKey}&year=${vYear}&make=${encodeURIComponent(vMake)}&model=${encodeURIComponent(vModel)}&zip=${zipCode}&radius=200&stats=price,miles`
+        ).catch(() => null) : Promise.resolve(null);
+
+        // Gemini fallback: only if no cache AND no MarketCheck key
+        const acvGeminiPromise = (!acvData && !mcKey) ? fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${US_STATES.find(s=>s.code===claimState)?.name || claimState}` : ""}?
+              contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}?
 
 Return ONLY a JSON object, no markdown:
 {
@@ -1125,14 +1149,14 @@ Return ONLY a JSON object, no markdown:
 }
 
 Consider: year/make/model, typical depreciation, current used car market prices, condition, and mileage. ACV = what the vehicle was worth BEFORE the accident (fair market value for a comparable vehicle in similar condition). Be realistic — use actual market data.` }] }],
-              generationConfig: { temperature: 0.1, maxOutputTokens: 512 },
+              generationConfig: { temperature: 0, maxOutputTokens: 512 },
             }),
           }
-        ).catch(() => null);
+        ).catch(() => null) : Promise.resolve(null);
 
-        const [priceLookupRes, acvLookupRes] = await Promise.all([pricePromise, acvPromise]);
+        const [priceLookupRes, marketCheckRes, acvGeminiRes] = await Promise.all([pricePromise, marketCheckPromise, acvGeminiPromise]);
 
-        // Parse price lookup
+        // Parse OEM/aftermarket price lookup
         try {
           if (priceLookupRes?.ok) {
             const priceLookupData = await priceLookupRes.json();
@@ -1145,18 +1169,84 @@ Consider: year/make/model, typical depreciation, current used car market prices,
           }
         } catch { /* network error */ }
 
-        // Parse ACV lookup
-        try {
-          if (acvLookupRes?.ok) {
-            const acvLookupData = await acvLookupRes.json();
-            const acvText = acvLookupData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            const cleanAcv = acvText.replace(/```json\n?|```\n?/g, "").trim();
+        // Parse ACV — MarketCheck primary, Gemini fallback
+        if (!acvData) {
+          // Try MarketCheck first
+          let mcSuccess = false;
+          try {
+            if (marketCheckRes?.ok) {
+              const mcData = await marketCheckRes.json();
+              const priceStats = mcData.price || mcData.stats?.price;
+              const milesStats = mcData.miles || mcData.stats?.miles;
+              const count = mcData.num_found || mcData.count || priceStats?.count || 0;
+              if (priceStats && priceStats.median && count >= 3) {
+                // Mileage adjustment: if vehicle has more miles than median, reduce value proportionally
+                let mileageAdj = "";
+                let adjFactor = 1;
+                if (vMileage && milesStats?.median) {
+                  const milesDiff = parseInt(vMileage) - milesStats.median;
+                  // ~$0.05-0.15 per mile deviation depending on vehicle value
+                  const perMile = priceStats.median > 30000 ? 0.12 : priceStats.median > 15000 ? 0.08 : 0.05;
+                  adjFactor = 1 - (milesDiff * perMile / priceStats.median);
+                  adjFactor = Math.max(0.7, Math.min(1.3, adjFactor)); // clamp ±30%
+                  mileageAdj = milesDiff > 0
+                    ? `Vehicle has ${Math.abs(milesDiff).toLocaleString()} more miles than market median — value adjusted down`
+                    : `Vehicle has ${Math.abs(milesDiff).toLocaleString()} fewer miles than market median — value adjusted up`;
+                }
+                const adjMedian = Math.round(priceStats.median * adjFactor);
+                const adjMin = Math.round((priceStats.min || priceStats.median * 0.75) * adjFactor);
+                const adjMax = Math.round((priceStats.max || priceStats.median * 1.25) * adjFactor);
+                // Use percentile-based range: ~15th to ~85th percentile estimate
+                const acvLow = Math.round(adjMedian * 0.85);
+                const acvHigh = Math.round(adjMedian * 1.15);
+                acvData = {
+                  acv_low: acvLow,
+                  acv_high: acvHigh,
+                  acv_mid: adjMedian,
+                  condition_assumed: "good",
+                  mileage_adjustment: mileageAdj,
+                  source_basis: `MarketCheck: ${count} comparable listings within 200mi of ${zipCode}, median $${priceStats.median.toLocaleString()}`,
+                  _mc_raw: { median: priceStats.median, mean: priceStats.mean, min: priceStats.min, max: priceStats.max, count },
+                };
+                mcSuccess = true;
+                console.log(`ACV from MarketCheck: $${adjMedian.toLocaleString()} (${count} listings, median $${priceStats.median.toLocaleString()})`);
+              }
+            }
+          } catch (e) { console.warn("MarketCheck ACV failed:", e.message); }
+
+          // Gemini fallback if MarketCheck failed or unavailable
+          if (!mcSuccess) {
             try {
-              acvData = JSON.parse(cleanAcv);
-              acvContext = `\nVEHICLE ACV (Actual Cash Value): $${acvData.acv_low?.toLocaleString()} – $${acvData.acv_high?.toLocaleString()} (mid: $${acvData.acv_mid?.toLocaleString()}). Condition assumed: ${acvData.condition_assumed}. ${acvData.mileage_adjustment || ""}\nUse this ACV to determine total loss threshold: if total repair cost exceeds 70-75% of ACV, recommend total loss.\n`;
-            } catch { /* ignore parse errors */ }
+              // If we had MarketCheck key but it returned no/few results, try Gemini now
+              const geminiRes = acvGeminiRes || (mcKey ? await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: `What is the current fair market value (Actual Cash Value / ACV) of a ${vYear} ${vMake} ${vModel}${vMileage ? ` with ${parseInt(vMileage).toLocaleString()} miles` : ""}${claimState ? ` in ${stateZip?.label || claimState}` : ""}? Return ONLY JSON: {"acv_low":number,"acv_high":number,"acv_mid":number,"condition_assumed":"good|fair|excellent","mileage_adjustment":"...","source_basis":"..."}` }] }],
+                    generationConfig: { temperature: 0, maxOutputTokens: 512 },
+                  }),
+                }
+              ).catch(() => null) : null);
+              if (geminiRes?.ok) {
+                const gData = await geminiRes.json();
+                const gText = gData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                const cleanAcv = gText.replace(/```json\n?|```\n?/g, "").trim();
+                acvData = JSON.parse(cleanAcv);
+                acvData.source_basis = (acvData.source_basis || "AI estimate") + " (Gemini fallback)";
+                console.log("ACV from Gemini fallback:", acvData.acv_mid);
+              }
+            } catch { /* Gemini also failed */ }
           }
-        } catch { /* network error */ }
+
+          // Build context + cache
+          if (acvData) {
+            acvContext = `\nVEHICLE ACV (Actual Cash Value): $${acvData.acv_low?.toLocaleString()} – $${acvData.acv_high?.toLocaleString()} (mid: $${acvData.acv_mid?.toLocaleString()}). ${acvData.condition_assumed ? `Condition: ${acvData.condition_assumed}.` : ""} ${acvData.mileage_adjustment || ""}\nSource: ${acvData.source_basis || "estimated"}\nUse this ACV to determine total loss threshold: if total repair cost exceeds 70-75% of ACV, recommend total loss.\n`;
+            try { localStorage.setItem(acvCacheKey, JSON.stringify({ ...acvData, _ts: Date.now() })); } catch { /* storage full */ }
+            console.log("ACV cached:", acvData.acv_mid, "| Source:", acvData.source_basis);
+          }
+        }
       }
 
       const vehicleContext = type === "auto" && vMake ? `Vehicle: ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} miles` : ""}` : "";
