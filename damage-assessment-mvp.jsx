@@ -1197,20 +1197,32 @@ function NewClaimView({ onSubmit, initialType }) {
           return null;
         };
 
-        // --- Unified text lookup: Perplexity primary → OpenAI → Gemini fallback ---
-        const textLookup = async (prompt, maxTokens = 400) => {
-          const result = await perplexityTextCall(prompt, maxTokens);
-          if (result) { console.log("Text lookup: Perplexity ✓"); return result; }
-          const result2 = await openaiTextCall(prompt, maxTokens);
-          if (result2) { console.log("Text lookup: OpenAI fallback ✓"); return result2; }
+        // --- Price lookup: OpenAI primary (stable JSON), Perplexity/Gemini fallback ---
+        const priceLookup = async (prompt, maxTokens = 400) => {
+          const result = await openaiTextCall(prompt, maxTokens);
+          if (result) { console.log("Price lookup: OpenAI ✓"); return result; }
+          const result2 = await perplexityTextCall(prompt, maxTokens);
+          if (result2) { console.log("Price lookup: Perplexity fallback ✓"); return result2; }
           const result3 = await geminiTextCall(prompt, maxTokens);
-          if (result3) { console.log("Text lookup: Gemini fallback ✓"); return result3; }
-          console.warn("Text lookup: all providers failed");
+          if (result3) { console.log("Price lookup: Gemini fallback ✓"); return result3; }
+          console.warn("Price lookup: all providers failed");
+          return null;
+        };
+
+        // --- ACV lookup: Perplexity primary (real web search), OpenAI/Gemini fallback ---
+        const acvLookup = async (prompt, maxTokens = 400) => {
+          const result = await perplexityTextCall(prompt, maxTokens);
+          if (result) { console.log("ACV lookup: Perplexity ✓"); return result; }
+          const result2 = await openaiTextCall(prompt, maxTokens);
+          if (result2) { console.log("ACV lookup: OpenAI fallback ✓"); return result2; }
+          const result3 = await geminiTextCall(prompt, maxTokens);
+          if (result3) { console.log("ACV lookup: Gemini fallback ✓"); return result3; }
+          console.warn("ACV lookup: all providers failed");
           return null;
         };
 
         // --- Run all pre-lookups in parallel ---
-        // 1. OEM/Aftermarket prices — Perplexity primary, OpenAI/Gemini fallback, split into 3 parallel requests
+        // 1. OEM/Aftermarket prices — OpenAI primary (stable), Perplexity/Gemini fallback
         const priceGroups = [
           "front_bumper,rear_bumper,hood,fender,door",
           "headlight,taillight,mirror,windshield,grille",
@@ -1225,7 +1237,7 @@ Format: {"part_name":{"o":[low,high],"a":[low,high]}}
 Where o=OEM price range, a=aftermarket price range.
 If aftermarket is not available for this part, estimate it as 40-60% of OEM.
 Example: {"front_bumper":{"o":[800,1200],"a":[350,550]}}`;
-        const pricePromises = priceGroups.map(keys => textLookup(pricePrompt(keys), 400).catch(() => null));
+        const pricePromises = priceGroups.map(keys => priceLookup(pricePrompt(keys), 400).catch(() => null));
 
         // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
         const mcKey = import.meta.env.VITE_MARKETCHECK_API_KEY;
@@ -1279,7 +1291,7 @@ Example: {"front_bumper":{"o":[800,1200],"a":[350,550]}}`;
         })() : Promise.resolve(null);
 
         // AI fallback for ACV: only if no cache AND no MarketCheck key
-        const acvAiPromise = (!acvData && !mcKey) ? textLookup(
+        const acvAiPromise = (!acvData && !mcKey) ? acvLookup(
           `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}`,
           256
         ).catch(() => null) : Promise.resolve(null);
