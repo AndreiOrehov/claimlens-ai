@@ -2091,7 +2091,7 @@ GENERAL ACCURACY RULES:
               d.paint.rate = statePaintRate;
             }
 
-            // 2. Override labor HOURS from database
+            // 2. Override labor HOURS from database — ALWAYS use DB values, never trust Gemini
             if (d.labor && (op === "R&R" || op === "R&I")) {
               const dbEntry = getLaborHours(compName);
               if (dbEntry) {
@@ -2103,19 +2103,30 @@ GENERAL ACCURACY RULES:
                 overrideCount++;
               }
             } else if (d.labor && op === "REPAIR") {
-              const sev = (d.severity || "moderate").toLowerCase();
-              const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
-                : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
-                : LABOR_TIMES.repair.moderate.hours;
-              const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
-              if (d.labor.hours > repMid * 1.5) {
+              // For REPAIR: first try component-specific hours, then severity-based
+              const dbEntry = getLaborHours(compName);
+              if (dbEntry) {
+                // Use 60% of R&R hours as repair baseline (repair < full replace)
+                const repMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * 0.6 * classFactor * 10) / 10;
+                d.labor.hours = repMid;
+                d.labor.type = dbEntry.type || d.labor.type;
+                overrideCount++;
+              } else {
+                const sev = (d.severity || "moderate").toLowerCase();
+                const repairHrs = sev === "minor" ? LABOR_TIMES.repair.light.hours
+                  : sev === "severe" ? LABOR_TIMES.repair.heavy.hours
+                  : LABOR_TIMES.repair.moderate.hours;
+                const repMid = Math.round(((repairHrs[0] + repairHrs[1]) / 2) * classFactor * 10) / 10;
                 d.labor.hours = repMid;
                 overrideCount++;
               }
+            } else if (d.labor && op === "SUBLET") {
+              // Sublet: zero out labor hours (cost is in sublet field)
+              d.labor.hours = 0;
             }
 
-            // 3. Override Refinish / Blend paint hours from database
-            if (d.paint && (op === "REFINISH" || op === "BLEND")) {
+            // 3. Override paint hours from database — for ANY operation that has paint
+            if (d.paint) {
               const dbPaint = getRefinishHours(compName);
               if (dbPaint) {
                 const paintMid = (dbPaint.hours[0] + dbPaint.hours[1]) / 2;
