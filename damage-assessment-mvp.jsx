@@ -1122,45 +1122,74 @@ function NewClaimView({ onSubmit, initialType }) {
           }
         } catch { /* cache miss */ }
 
-        // --- Gemini helper with retry + model fallback ---
-        // Retries same model 2x with backoff, then falls back to next model
-        const geminiTextCall = async (body) => {
+        // --- OpenAI helper for text lookups (price, ACV) ---
+        const openaiTextCall = async (prompt, maxTokens = 400) => {
+          const key = import.meta.env.VITE_OPENAI_API_KEY;
+          if (!key) return null;
+          try {
+            const res = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+              body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0,
+                max_tokens: maxTokens,
+              }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const text = data.choices?.[0]?.message?.content || "";
+              return text;
+            }
+            console.warn(`OpenAI: ${res.status}`, await res.text().catch(() => ""));
+            return null;
+          } catch (e) { console.warn("OpenAI failed:", e.message); return null; }
+        };
+
+        // --- Gemini fallback for text lookups ---
+        const geminiTextCall = async (prompt, maxTokens = 400) => {
           const key = import.meta.env.VITE_GEMINI_API_KEY;
           const models = ["gemini-flash-latest", "gemini-2.5-flash"];
           for (const model of models) {
-            for (let attempt = 0; attempt < 3; attempt++) {
+            for (let attempt = 0; attempt < 2; attempt++) {
               try {
-                if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt)); // 1.5s, 3s backoff
+                if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-                  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: maxTokens } }),
                 });
-                if (res.ok) return res;
-                if (res.status === 429 || res.status === 503) {
-                  console.warn(`Gemini ${model}: ${res.status}, retry ${attempt + 1}/3...`);
-                  continue; // retry same model
+                if (res.ok) {
+                  const data = await res.json();
+                  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                 }
-                try { const errBody = await res.json(); console.warn(`Gemini ${model}: ${res.status}`, errBody?.error?.message || errBody); } catch {}
-                break; // non-retryable error → try next model
-              } catch (e) { console.warn(`Gemini ${model} attempt ${attempt + 1} failed:`, e.message); }
+                if (res.status === 429 || res.status === 503) { console.warn(`Gemini ${model}: ${res.status}, retry...`); continue; }
+                break;
+              } catch (e) { console.warn(`Gemini ${model} failed:`, e.message); }
             }
           }
           return null;
         };
 
+        // --- Unified text lookup: OpenAI primary, Gemini fallback ---
+        const textLookup = async (prompt, maxTokens = 400) => {
+          const result = await openaiTextCall(prompt, maxTokens);
+          if (result) return result;
+          return geminiTextCall(prompt, maxTokens);
+        };
+
         // --- Run all pre-lookups in parallel ---
-        // 1. OEM/Aftermarket prices (Gemini) — split into 3 small parallel requests
+        // 1. OEM/Aftermarket prices — OpenAI primary, Gemini fallback, split into 3 parallel requests
         const priceGroups = [
           "front_bumper,rear_bumper,hood,fender,door",
           "headlight,taillight,mirror,windshield,grille",
           "quarter_panel,trunk_tailgate,radiator,ac_condenser",
         ];
-        const pricePromises = priceGroups.map(keys => geminiTextCall({
-          contents: [{ parts: [{ text: `${vYear} ${vMake} ${vModel} parts prices USD. JSON only, no markdown.
+        const pricePrompt = (keys) => `${vYear} ${vMake} ${vModel} parts prices USD. JSON only, no markdown.
 Keys: ${keys}
 Each: {"o":[low,high],"a":[low,high]} (o=OEM,a=aftermarket,null if N/A)
-Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 400 },
-        }).catch(() => null));
+Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}`;
+        const pricePromises = priceGroups.map(keys => textLookup(pricePrompt(keys), 400).catch(() => null));
 
         // 2. ACV: MarketCheck (primary) + Gemini (fallback) — skip both if cached
         const mcKey = import.meta.env.VITE_MARKETCHECK_API_KEY;
@@ -1213,22 +1242,20 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
           } catch (e) { console.warn("MarketCheck request failed:", e.message); return null; }
         })() : Promise.resolve(null);
 
-        // Gemini fallback: only if no cache AND no MarketCheck key
-        const acvGeminiPromise = (!acvData && !mcKey) ? geminiTextCall({
-          contents: [{ parts: [{ text: `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}` }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 256 },
-        }).catch(() => null) : Promise.resolve(null);
+        // AI fallback for ACV: only if no cache AND no MarketCheck key
+        const acvAiPromise = (!acvData && !mcKey) ? textLookup(
+          `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}`,
+          256
+        ).catch(() => null) : Promise.resolve(null);
 
-        const [priceRes1, priceRes2, priceRes3, marketCheckRes, acvGeminiRes] = await Promise.all([...pricePromises, marketCheckPromise, acvGeminiPromise]);
+        const [priceRes1, priceRes2, priceRes3, marketCheckRes, acvAiRes] = await Promise.all([...pricePromises, marketCheckPromise, acvAiPromise]);
 
-        // Parse OEM/aftermarket price lookups (merge 3 parallel responses)
+        // Parse OEM/aftermarket price lookups (merge 3 parallel text responses)
         try {
           const prices = {};
-          for (const res of [priceRes1, priceRes2, priceRes3]) {
+          for (const text of [priceRes1, priceRes2, priceRes3]) {
             try {
-              if (!res?.ok) continue;
-              const data = await res.json();
-              const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              if (!text) continue;
               const cleanJson = text.replace(/```json\n?|```\n?/g, "").trim();
               const rawPrices = JSON.parse(cleanJson);
               for (const [k, v] of Object.entries(rawPrices)) {
@@ -1238,8 +1265,9 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
           }
           if (Object.keys(prices).length > 0) {
             modelPricingContext = `\nMODEL-SPECIFIC OEM/AFTERMARKET PRICES for ${vYear} ${vMake} ${vModel} (use these as primary price reference):\n${JSON.stringify(prices, null, 2)}\n`;
+            console.log(`Price lookup: ${Object.keys(prices).length} parts loaded`);
           }
-        } catch { /* network error */ }
+        } catch { /* parse error */ }
 
         // Parse ACV — MarketCheck primary, Gemini fallback
         if (!acvData) {
@@ -1299,23 +1327,20 @@ Example: {"front_bumper":{"o":[800,1200],"a":[300,500]},...}` }] }],
             }
           } catch (e) { console.warn("MarketCheck ACV parse failed:", e.message); }
 
-          // Gemini fallback if MarketCheck failed or unavailable
+          // AI fallback if MarketCheck failed or unavailable
           if (!mcSuccess) {
             try {
-              // If we had MarketCheck key but it returned no/few results, try Gemini now
-              const geminiRes = acvGeminiRes || (mcKey ? await geminiTextCall({
-                contents: [{ parts: [{ text: `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}` }] }],
-                generationConfig: { temperature: 0, maxOutputTokens: 256 },
-              }).catch(() => null) : null);
-              if (geminiRes?.ok) {
-                const gData = await geminiRes.json();
-                const gText = gData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                const cleanAcv = gText.replace(/```json\n?|```\n?/g, "").trim();
+              const aiText = acvAiRes || (mcKey ? await textLookup(
+                `ACV (pre-accident fair market value) for ${vYear} ${vMake} ${vModel}${vMileage ? `, ${parseInt(vMileage).toLocaleString()} mi` : ""}${claimState ? `, ${stateZip?.label || claimState}` : ""}. JSON only: {"acv_low":N,"acv_high":N,"acv_mid":N,"condition_assumed":"good|fair|excellent","source_basis":"brief"}`,
+                256
+              ).catch(() => null) : null);
+              if (aiText) {
+                const cleanAcv = aiText.replace(/```json\n?|```\n?/g, "").trim();
                 acvData = JSON.parse(cleanAcv);
-                acvData.source_basis = (acvData.source_basis || "AI estimate") + " (Gemini fallback)";
-                console.log("ACV from Gemini fallback:", acvData.acv_mid);
+                acvData.source_basis = (acvData.source_basis || "AI estimate") + " (AI fallback)";
+                console.log("ACV from AI fallback:", acvData.acv_mid);
               }
-            } catch { /* Gemini also failed */ }
+            } catch { /* AI also failed */ }
           }
 
           // Build context + cache
