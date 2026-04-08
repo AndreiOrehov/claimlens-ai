@@ -1938,12 +1938,9 @@ GENERAL ACCURACY RULES:
           for (const k of Object.keys(mergedEstimateSummary)) {
             if (typeof mergedEstimateSummary[k] === "number") mergedEstimateSummary[k] = Math.round(mergedEstimateSummary[k] * 100) / 100;
           }
-          // Use AI's estimate_summary if available (more accurate grouping), but keep our tax calc
-          const aiSummary = assessments.find(a => a.estimate_summary)?.estimate_summary;
-          if (aiSummary) {
-            const savedTax = { parts_tax_rate: mergedEstimateSummary.parts_tax_rate, parts_tax_amount: mergedEstimateSummary.parts_tax_amount };
-            mergedEstimateSummary = { ...mergedEstimateSummary, ...aiSummary, ...savedTax, gross_total: totalEstimate, net_total: Math.round((totalEstimate + savedTax.parts_tax_amount) * 100) / 100 };
-          }
+          // NOTE: We no longer override with AI's estimate_summary because our
+          // mergedEstimateSummary is built from post-override line items (corrected labor hours).
+          // AI's summary uses pre-override hours which causes summary ≠ line items mismatch.
         }
 
         // Pick most common severity/repair_vs_replace
