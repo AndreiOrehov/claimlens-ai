@@ -1122,7 +1122,32 @@ function NewClaimView({ onSubmit, initialType }) {
           }
         } catch { /* cache miss */ }
 
-        // --- OpenAI helper for text lookups (price, ACV) ---
+        // --- Perplexity helper for text lookups (searches real web data) ---
+        const perplexityTextCall = async (prompt, maxTokens = 400) => {
+          const key = import.meta.env.VITE_PERPLEXITY_API_KEY;
+          if (!key) return null;
+          try {
+            const res = await fetch("https://api.perplexity.ai/chat/completions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+              body: JSON.stringify({
+                model: "sonar",
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0,
+                max_tokens: maxTokens,
+              }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const text = data.choices?.[0]?.message?.content || "";
+              return text;
+            }
+            console.warn(`Perplexity: ${res.status}`, await res.text().catch(() => ""));
+            return null;
+          } catch (e) { console.warn("Perplexity failed:", e.message); return null; }
+        };
+
+        // --- OpenAI fallback for text lookups ---
         const openaiTextCall = async (prompt, maxTokens = 400) => {
           const key = import.meta.env.VITE_OPENAI_API_KEY;
           if (!key) return null;
@@ -1150,7 +1175,7 @@ function NewClaimView({ onSubmit, initialType }) {
         // --- Gemini fallback for text lookups ---
         const geminiTextCall = async (prompt, maxTokens = 400) => {
           const key = import.meta.env.VITE_GEMINI_API_KEY;
-          const models = ["gemini-flash-latest", "gemini-2.5-flash"];
+          const models = ["gemini-2.0-flash-lite", "gemini-2.0-flash"];
           for (const model of models) {
             for (let attempt = 0; attempt < 2; attempt++) {
               try {
@@ -1171,15 +1196,17 @@ function NewClaimView({ onSubmit, initialType }) {
           return null;
         };
 
-        // --- Unified text lookup: OpenAI primary, Gemini fallback ---
+        // --- Unified text lookup: Perplexity primary → OpenAI → Gemini fallback ---
         const textLookup = async (prompt, maxTokens = 400) => {
-          const result = await openaiTextCall(prompt, maxTokens);
+          const result = await perplexityTextCall(prompt, maxTokens);
           if (result) return result;
+          const result2 = await openaiTextCall(prompt, maxTokens);
+          if (result2) return result2;
           return geminiTextCall(prompt, maxTokens);
         };
 
         // --- Run all pre-lookups in parallel ---
-        // 1. OEM/Aftermarket prices — OpenAI primary, Gemini fallback, split into 3 parallel requests
+        // 1. OEM/Aftermarket prices — Perplexity primary, OpenAI/Gemini fallback, split into 3 parallel requests
         const priceGroups = [
           "front_bumper,rear_bumper,hood,fender,door",
           "headlight,taillight,mirror,windshield,grille",
@@ -1698,16 +1725,34 @@ GENERAL ACCURACY RULES:
 
             // Mitchell-style auto: single estimated_cost, operation, part_info, labor, paint
             if (bestEntry.operation !== undefined) {
-              // Recalculate estimated_cost from breakdown so line items sum = gross_total
-              const labor = bestEntry.labor || null;
-              const paint = bestEntry.paint || null;
-              const partInfo = bestEntry.part_info || null;
-              const sublet = bestEntry.sublet || 0;
-              const laborCost = labor ? Math.round((labor.hours || 0) * (labor.rate || 0)) : 0;
-              const paintCost = paint ? Math.round((paint.hours || 0) * (paint.rate || 0)) + (paint.materials || 0) : 0;
+              // AVERAGE breakdowns across all entries for stable estimates
+              const avg = (arr, fn) => arr.length ? Math.round(arr.reduce((s, e) => s + fn(e), 0) / arr.length * 100) / 100 : 0;
+              const laborEntries = entries.filter(e => e.labor);
+              const paintEntries = entries.filter(e => e.paint);
+              const partEntries = entries.filter(e => e.part_info);
+
+              const labor = laborEntries.length ? {
+                hours: avg(laborEntries, e => e.labor.hours || 0),
+                rate: avg(laborEntries, e => e.labor.rate || 0),
+                type: bestEntry.labor?.type || "body",
+              } : null;
+              const paint = paintEntries.length ? {
+                hours: avg(paintEntries, e => e.paint.hours || 0),
+                rate: avg(paintEntries, e => e.paint.rate || 0),
+                materials: Math.round(avg(paintEntries, e => e.paint.materials || 0)),
+              } : null;
+              const partInfo = partEntries.length ? {
+                name: bestEntry.part_info?.name || "",
+                type: bestEntry.part_info?.type || "aftermarket",
+                price: Math.round(avg(partEntries, e => e.part_info.price || 0)),
+                oem_price: Math.round(avg(partEntries, e => e.part_info.oem_price || e.part_info.price || 0)),
+              } : null;
+              const sublet = Math.round(avg(entries, e => e.sublet || 0));
+
+              const laborCost = labor ? Math.round(labor.hours * labor.rate) : 0;
+              const paintCost = paint ? Math.round(paint.hours * paint.rate) + paint.materials : 0;
               const partCost = partInfo?.price || 0;
               const calcCost = laborCost + paintCost + partCost + sublet;
-              // Use calculated cost if breakdown exists; otherwise fall back to AI average
               const avgCost = Math.round(entries.reduce((s, e) => s + (e.estimated_cost || 0), 0) / entries.length);
               const merged = {
                 component: info.component,

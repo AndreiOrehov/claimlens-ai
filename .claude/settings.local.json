@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(curl *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(find *)",
+      "Bash(python3 *)",
+      "Bash(start *)",
+      "Bash(export *)",
+      "Bash(powershell.exe *)",
+      "Bash(pdftotext *)",
+      "Bash(gh *)",
+      "mcp__Claude_Preview__*",
+      "Bash(where pdftoppm:*)",
+      "Bash(python -c ':*)",
+      "Bash(dir \"C:\\\\Users\\\\Android\\\\Downloads\\\\ClaimPilot AI*\")",
+      "Bash(where node:*)"
+    ]
+  }
+}
