@@ -396,30 +396,38 @@ export const AUTO_PARTS_PRICING = {
 
 const AUTO_COMPONENT_ALIASES = {
   "front bumper": "bumper_front", "bumper front": "bumper_front", "front bumper cover": "bumper_front",
+  "front bumper assembly": "bumper_front", "bumper cover front": "bumper_front",
   "rear bumper": "bumper_rear", "bumper rear": "bumper_rear", "rear bumper cover": "bumper_rear",
+  "rear bumper assembly": "bumper_rear", "bumper cover rear": "bumper_rear",
   bumper: "bumper_front",
   fender: "fender", "front fender": "fender", "rear fender": "quarter_panel", "wing": "fender",
-  hood: "hood", bonnet: "hood", "engine hood": "hood",
+  "fender panel": "fender", "front fender panel": "fender",
+  hood: "hood", bonnet: "hood", "engine hood": "hood", "hood panel": "hood",
   door: "door", "door panel": "door", "door shell": "door", "driver door": "door", "passenger door": "door",
-  "front door": "door", "rear door": "door", "side door": "door",
+  "front door": "door", "rear door": "door", "side door": "door", "door assembly": "door",
   windshield: "windshield", "front windshield": "windshield", "windscreen": "windshield", "front glass": "windshield",
   "rear window": "windshield", "rear glass": "windshield", "back glass": "windshield",
   headlight: "headlight", "head light": "headlight", "headlamp": "headlight", "head lamp": "headlight",
-  "front light": "headlight",
+  "front light": "headlight", "headlamp assembly": "headlight", "headlight assembly": "headlight",
+  "head lamp assembly": "headlight", "head light assembly": "headlight",
   taillight: "taillight", "tail light": "taillight", "taillamp": "taillight", "rear light": "taillight",
-  "brake light": "taillight",
+  "brake light": "taillight", "taillight assembly": "taillight", "taillamp assembly": "taillight",
+  "tail light assembly": "taillight", "tail lamp assembly": "taillight",
   mirror: "mirror", "side mirror": "mirror", "wing mirror": "mirror", "rearview mirror": "mirror",
-  "door mirror": "mirror",
+  "door mirror": "mirror", "mirror assembly": "mirror", "side view mirror": "mirror",
+  "outside rearview mirror": "mirror",
   trunk: "trunk", "trunk lid": "trunk", "tailgate": "trunk", "liftgate": "trunk", "hatch": "trunk",
+  "trunk lid panel": "trunk", "trunk panel": "trunk", "decklid": "trunk", "deck lid": "trunk",
   "quarter panel": "quarter_panel", "rear quarter": "quarter_panel", "rear quarter panel": "quarter_panel",
   "front quarter panel": "fender",
   roof: "roof", "roof panel": "roof", "roof skin": "roof",
   frame: "frame", "structural": "frame", "frame rail": "frame", "unibody": "frame", "subframe": "frame",
-  "chassis": "frame",
+  "chassis": "frame", "radiator support": "frame", "core support": "frame", "radiator core support": "frame",
   suspension: "suspension", "strut": "suspension", "shock": "suspension", "shock absorber": "suspension",
   "control arm": "suspension", "spring": "suspension",
   airbag: "airbag", "air bag": "airbag", "srs": "airbag",
   grille: "grille", "grill": "grille", "front grille": "grille", "radiator grille": "grille",
+  "grille assembly": "grille", "grill assembly": "grille",
   paint: "paint_panel", "paint job": "paint_panel", "repaint": "paint_panel", "paint work": "paint_panel",
   "scratch": "paint_panel", "clear coat": "paint_panel",
   // Interior
@@ -603,17 +611,32 @@ export function getPartPrice(componentName, operation, vehicleClass) {
     .replace(/_/g, " ")
     .replace(/\s*(lh|rh|lf|rf|lr|rr|left|right)\s*/gi, " ")
     .trim();
-  // Look up via alias table
-  const aliasKey = AUTO_COMPONENT_ALIASES[normalized];
-  const pricing = aliasKey ? AUTO_PARTS_PRICING[aliasKey]?.[cls] : null;
-  if (!pricing) {
-    // Try direct key match
-    const directKey = normalized.replace(/\s+/g, "_");
-    const directPricing = AUTO_PARTS_PRICING[directKey]?.[cls];
-    if (!directPricing) return null;
-    return _extractPartPrice(directPricing, operation);
+  // 1. Exact alias match
+  let aliasKey = AUTO_COMPONENT_ALIASES[normalized];
+  if (aliasKey) {
+    const p = AUTO_PARTS_PRICING[aliasKey]?.[cls];
+    if (p) return _extractPartPrice(p, operation);
   }
-  return _extractPartPrice(pricing, operation);
+  // 2. Strip common suffixes and retry alias
+  const stripped = normalized.replace(/\b(assembly|assy|panel|cover|module|unit)\b/g, "").replace(/\s+/g, " ").trim();
+  if (stripped !== normalized) {
+    aliasKey = AUTO_COMPONENT_ALIASES[stripped];
+    if (aliasKey) {
+      const p = AUTO_PARTS_PRICING[aliasKey]?.[cls];
+      if (p) return _extractPartPrice(p, operation);
+    }
+  }
+  // 3. Direct key match in AUTO_PARTS_PRICING
+  const directKey = normalized.replace(/\s+/g, "_");
+  const directPricing = AUTO_PARTS_PRICING[directKey]?.[cls];
+  if (directPricing) return _extractPartPrice(directPricing, operation);
+  // 4. Stripped direct key
+  if (stripped !== normalized) {
+    const strippedKey = stripped.replace(/\s+/g, "_");
+    const sp = AUTO_PARTS_PRICING[strippedKey]?.[cls];
+    if (sp) return _extractPartPrice(sp, operation);
+  }
+  return null;
 }
 
 function _extractPartPrice(pricing, operation) {
