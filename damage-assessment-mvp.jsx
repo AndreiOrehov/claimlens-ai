@@ -1620,17 +1620,27 @@ GENERAL ACCURACY RULES:
 
             // Mitchell-style auto: single estimated_cost, operation, part_info, labor, paint
             if (bestEntry.operation !== undefined) {
+              // Recalculate estimated_cost from breakdown so line items sum = gross_total
+              const labor = bestEntry.labor || null;
+              const paint = bestEntry.paint || null;
+              const partInfo = bestEntry.part_info || null;
+              const sublet = bestEntry.sublet || 0;
+              const laborCost = labor ? Math.round((labor.hours || 0) * (labor.rate || 0)) : 0;
+              const paintCost = paint ? Math.round((paint.hours || 0) * (paint.rate || 0)) + (paint.materials || 0) : 0;
+              const partCost = partInfo?.price || 0;
+              const calcCost = laborCost + paintCost + partCost + sublet;
+              // Use calculated cost if breakdown exists; otherwise fall back to AI average
               const avgCost = Math.round(entries.reduce((s, e) => s + (e.estimated_cost || 0), 0) / entries.length);
               const merged = {
                 component: info.component,
                 operation: bestEntry.operation,
                 description: bestEntry.description,
                 severity: topSev,
-                part_info: bestEntry.part_info || null,
-                labor: bestEntry.labor || null,
-                paint: bestEntry.paint || null,
-                sublet: bestEntry.sublet || null,
-                estimated_cost: avgCost,
+                part_info: partInfo,
+                labor: labor,
+                paint: paint,
+                sublet: sublet,
+                estimated_cost: calcCost > 0 ? calcCost : avgCost,
                 notes: bestEntry.notes || "",
               };
               mergedDamages.push(merged);
@@ -1806,7 +1816,9 @@ GENERAL ACCURACY RULES:
         const result = {
           summary: assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0].summary,
           damage_type: assessments[0].damage_type,
-          severity: pickMostCommon(assessments, "severity"),
+          severity: mergedTotalLoss?.recommendation === "total_loss" ? "total_loss"
+            : mergedTotalLoss?.recommendation === "repair" && pickMostCommon(assessments, "severity") === "total_loss" ? "severe"
+            : pickMostCommon(assessments, "severity"),
           confidence: Math.round(avgConf * 100) / 100,
           damages: mergedDamages,
           vehicle_acv: mergedAcv,
@@ -1815,7 +1827,10 @@ GENERAL ACCURACY RULES:
           potential_damages: potentialDamages,
           recommendations: allRecs,
           flags: allFlags,
-          repair_vs_replace: pickMostCommon(assessments, "repair_vs_replace"),
+          repair_vs_replace: mergedTotalLoss?.recommendation === "total_loss" ? "replace"
+            : mergedTotalLoss?.recommendation === "borderline" ? "needs_inspection"
+            : mergedTotalLoss?.recommendation === "repair" ? "repair"
+            : pickMostCommon(assessments, "repair_vs_replace"),
           _runs: assessments.length,
           _consensus: `${mergedDamages.length} components confirmed by ${minVotes}+ of ${assessments.length} runs`,
         };
@@ -1878,6 +1893,10 @@ GENERAL ACCURACY RULES:
             ? `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvMid.toLocaleString()}, approaching total loss threshold — physical inspection required`
             : `Estimated repair $${repairEstimate.toLocaleString()} = ${pct}% of ACV $${acvMid.toLocaleString()}, within economic repair range`,
         };
+        // Sync severity AND repair_vs_replace with total_loss_analysis
+        if (rec === "total_loss") { assessment.severity = "total_loss"; assessment.repair_vs_replace = "replace"; }
+        else if (rec === "borderline") { if (assessment.severity === "total_loss") assessment.severity = "severe"; assessment.repair_vs_replace = "needs_inspection"; }
+        else if (rec === "repair") { if (assessment.severity === "total_loss") assessment.severity = "severe"; assessment.repair_vs_replace = "repair"; }
       }
 
       const claim = {
