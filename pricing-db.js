@@ -81,10 +81,10 @@ export const STATE_SALES_TAX = {
 export const LABOR_RATE_CATEGORIES = {
   body:       { multiplier: 1.0,  label: "Body" },
   paint:      { multiplier: 1.0,  label: "Paint/Refinish" },
-  frame:      { multiplier: 1.0,  label: "Frame/Structural" },
-  structural: { multiplier: 1.0,  label: "Structural" },
-  mechanical: { multiplier: 1.0,  label: "Mechanical" },
-  diagnostic: { multiplier: 1.15, label: "Diagnostic/ADAS" },
+  frame:      { multiplier: 1.5,  label: "Frame" },
+  structural: { multiplier: 1.5,  label: "Structural" },
+  mechanical: { multiplier: 2.0,  label: "Mechanical" },
+  diagnostic: { multiplier: 1.5,  label: "Diagnostic/ADAS" },
   aluminum:   { multiplier: 1.5,  label: "Aluminum Certified" },
   glass:      { multiplier: 1.0,  label: "Glass" },
 };

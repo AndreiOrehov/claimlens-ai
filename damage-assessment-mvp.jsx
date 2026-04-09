@@ -1920,8 +1920,11 @@ GENERAL ACCURACY RULES:
           const classMulti = getClassMultiplier(vehClass);
           const classFactor = (classMulti[0] + classMulti[1]) / 2;
           const stateData = US_STATES.find(s => s.value === claimState) || { autoLaborRate: 143 };
-          const stateBodyRate = stateData.autoLaborRate;
-          const statePaintRate = stateBodyRate; // Paint rate = body rate in most states
+          // autoLaborRate is general auto repair rate; body rate is ~55% of that
+          // This aligns with real insurer data: GEICO CA body=$78, our CA auto=$150, 78/150=0.52
+          // Using 0.55 as middle ground between insurer DRP and retail body shop rates
+          const stateBodyRate = Math.round(stateData.autoLaborRate * 0.55);
+          const statePaintRate = stateBodyRate; // Paint rate ≈ body rate in most markets
           let overrideCount = 0;
           for (const d of mergedDamages) {
             if (!d.operation) continue;

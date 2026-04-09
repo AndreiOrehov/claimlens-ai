@@ -99,7 +99,7 @@ export const LABOR_TIMES = {
     trunk_lid:                { hours: [0.5, 1.0], type: "body", notes: "Bolt-on, similar to hood" },
     deck_lid:                 { hours: [0.5, 1.0], type: "body" },
     tailgate:                 { hours: [0.8, 1.5], type: "body" },
-    liftgate:                 { hours: [0.8, 1.5], type: "body" },
+    liftgate:                 { hours: [5.0, 8.0], type: "body", notes: "Includes transfer of glass, wiper, hardware, struts" },
     liftgate_glass:           { hours: [0.5, 0.8], type: "glass" },
     rear_spoiler:             { hours: [0.3, 0.5], type: "body" },
     trunk_hinge:              { hours: [0.3, 0.3], type: "body", notes: "Per side" },
