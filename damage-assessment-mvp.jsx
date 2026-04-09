@@ -1727,46 +1727,11 @@ GENERAL ACCURACY RULES:
       });
 
       const NUM_RUNS = 3;
+      const PRIMARY_MODEL = "gemini-3-flash-preview";
+      const FALLBACK_MODEL = "gemini-2.5-flash";
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-      // --- GPT-4o (primary) ---
-      const openaiImageContent = photos.map(p => ({
-        type: "image_url",
-        image_url: { url: p.data, detail: "high" },
-      }));
-      // Add captions as text blocks between images
-      const openaiContent = [];
-      photos.forEach(p => {
-        openaiContent.push({ type: "image_url", image_url: { url: p.data, detail: "high" } });
-        if (p.caption) openaiContent.push({ type: "text", text: `[Photo note: ${p.caption}]` });
-      });
-      openaiContent.push({ type: "text", text: userPrompt });
-
-      const openaiRequestBody = JSON.stringify({
-        model: "gpt-4o",
-        temperature: 0,
-        max_tokens: 4096,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt + "\n\nYou MUST respond with valid JSON only." },
-          { role: "user", content: openaiContent },
-        ],
-      });
-
-      const fetchOpenAIRun = async (runIdx) => {
-        const r = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}` },
-          body: openaiRequestBody,
-        });
-        const data = await r.json();
-        if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-        const txt = data.choices?.[0]?.message?.content || "";
-        const clean = txt.replace(/```json|```/g, "").trim();
-        return JSON.parse(clean);
-      };
-
-      // --- Gemini (fallback) ---
+      // --- Gemini API ---
       const geminiApiUrl = (model) =>
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
 
@@ -1781,29 +1746,23 @@ GENERAL ACCURACY RULES:
         return JSON.parse(clean);
       };
 
-      console.log(`Starting ${NUM_RUNS} parallel runs (GPT-4o → Gemini 3 Flash → Gemini 2.5 Flash)...`);
+      console.log(`Starting ${NUM_RUNS} parallel runs (${PRIMARY_MODEL} → retry → ${FALLBACK_MODEL})...`);
 
       const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
-        // 1. GPT-4o primary
-        fetchOpenAIRun(i)
-          .then(result => { console.log(`Run ${i + 1} (gpt-4o): OK`); return result; })
+        // 1. Primary: gemini-3-flash-preview (Google recommended for image understanding)
+        fetchGeminiRun(i, PRIMARY_MODEL)
+          .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL}): OK`); return result; })
           .catch(async (err) => {
-            console.warn(`Run ${i + 1} (gpt-4o) failed: ${err.message} — retry gpt-4o in 3s...`);
+            console.warn(`Run ${i + 1} (${PRIMARY_MODEL}) failed: ${err.message} — retry in 3s...`);
             await delay(3000);
-            return fetchOpenAIRun(i)
-              .then(result => { console.log(`Run ${i + 1} (gpt-4o retry): OK`); return result; })
+            return fetchGeminiRun(i, PRIMARY_MODEL)
+              .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL} retry): OK`); return result; })
               .catch(async (err2) => {
-                // 2. Gemini 3 Flash Preview fallback (recommended for image understanding)
-                console.warn(`Run ${i + 1} (gpt-4o retry) failed: ${err2.message} — trying gemini-3-flash-preview...`);
-                return fetchGeminiRun(i, "gemini-3-flash-preview")
-                  .then(result => { console.log(`Run ${i + 1} (gemini-3-flash-preview fallback): OK`); return result; })
-                  .catch(async (err3) => {
-                    // 3. Gemini 2.5 Flash last resort
-                    console.warn(`Run ${i + 1} (gemini-3-flash-preview) failed: ${err3.message} — trying gemini-2.5-flash...`);
-                    return fetchGeminiRun(i, "gemini-2.5-flash")
-                      .then(result => { console.log(`Run ${i + 1} (gemini-2.5-flash fallback): OK`); return result; })
-                      .catch(err4 => { console.error(`Run ${i + 1} ALL models failed:`, err4.message); return null; });
-                  });
+                // 2. Fallback: gemini-2.5-flash
+                console.warn(`Run ${i + 1} (${PRIMARY_MODEL} retry) failed: ${err2.message} — trying ${FALLBACK_MODEL}...`);
+                return fetchGeminiRun(i, FALLBACK_MODEL)
+                  .then(result => { console.log(`Run ${i + 1} (${FALLBACK_MODEL} fallback): OK`); return result; })
+                  .catch(err3 => { console.error(`Run ${i + 1} ALL models failed:`, err3.message); return null; });
               });
           })
       );
