@@ -1809,57 +1809,44 @@ GENERAL ACCURACY RULES:
           const uniqueRuns = new Set(info.entries.map(e => e.runIdx)).size;
           if (uniqueRuns >= minVotes) {
             const entries = info.entries;
-            // Pick most common severity
-            const sevCounts = {};
-            entries.forEach(e => { sevCounts[e.severity] = (sevCounts[e.severity] || 0) + 1; });
-            const topSev = Object.entries(sevCounts).sort((a, b) => b[1] - a[1])[0][0];
-            // Use longest description; pick best entry for extra fields
+            // MEDIAN severity: sort by weight, pick middle value (prevents outlier inflation)
+            const SEV_WEIGHT = { minor: 1, moderate: 2, severe: 3 };
+            const sevValues = entries.map(e => e.severity || "moderate").sort((a, b) => (SEV_WEIGHT[a] || 2) - (SEV_WEIGHT[b] || 2));
+            const medianSev = sevValues[Math.floor(sevValues.length / 2)];
+            // Use longest description for best detail
             const bestEntry = entries.sort((a, b) => (b.description || "").length - (a.description || "").length)[0];
 
-            // Mitchell-style auto: single estimated_cost, operation, part_info, labor, paint
+            // Mitchell-style auto: Gemini sends detection only, all costs built in post-processing
             if (bestEntry.operation !== undefined) {
-              // AVERAGE breakdowns across all entries for stable estimates
-              const avg = (arr, fn) => arr.length ? Math.round(arr.reduce((s, e) => s + fn(e), 0) / arr.length * 100) / 100 : 0;
-              const laborEntries = entries.filter(e => e.labor);
-              const paintEntries = entries.filter(e => e.paint);
-              const partEntries = entries.filter(e => e.part_info);
+              // Derive OPERATION from median severity + component type (not from Gemini)
+              const comp = (info.component || "").toLowerCase();
+              // Non-repairable parts: always R&R regardless of severity
+              const ALWAYS_REPLACE = ["headlamp", "headlight", "tail_lamp", "tail_light", "fog_lamp", "fog_light",
+                "grille", "windshield", "back_glass", "rear_window", "side_window", "door_glass", "quarter_glass",
+                "sunroof", "mirror", "sensor", "camera", "radar", "abs_sensor", "parking_sensor",
+                "airbag", "seat_belt", "wiring_harness", "license_plate_lamp", "backup_lamp",
+                "ac_condenser", "ac_compressor", "radiator", "alternator", "starter", "water_pump"];
+              // Sublet/Refinish/Blend operations: keep as-is (Gemini decides correctly for these)
+              const geminiOp = (bestEntry.operation || "").toUpperCase();
+              let derivedOp;
+              if (geminiOp === "SUBLET" || geminiOp === "REFINISH" || geminiOp === "BLEND" || geminiOp === "R&I") {
+                derivedOp = bestEntry.operation; // keep Gemini's choice
+              } else if (ALWAYS_REPLACE.some(p => comp.includes(p))) {
+                derivedOp = "R&R"; // non-repairable → always replace
+              } else if (medianSev === "severe") {
+                derivedOp = "R&R"; // severe → replace
+              } else {
+                derivedOp = "Repair"; // minor/moderate → repair in place
+              }
 
-              const labor = laborEntries.length ? {
-                hours: avg(laborEntries, e => e.labor.hours || 0),
-                rate: avg(laborEntries, e => e.labor.rate || 0),
-                type: bestEntry.labor?.type || "body",
-              } : null;
-              const paint = paintEntries.length ? {
-                hours: avg(paintEntries, e => e.paint.hours || 0),
-                rate: avg(paintEntries, e => e.paint.rate || 0),
-                materials: Math.round(avg(paintEntries, e => e.paint.materials || 0)),
-              } : null;
-              const partInfo = partEntries.length ? {
-                name: bestEntry.part_info?.name || "",
-                type: bestEntry.part_info?.type || "aftermarket",
-                price: Math.round(avg(partEntries, e => e.part_info.price || 0)),
-                oem_price: Math.round(avg(partEntries, e => e.part_info.oem_price || e.part_info.price || 0)),
-              } : null;
-              const sublet = Math.round(avg(entries, e => e.sublet || 0));
-
-              const laborCost = labor ? Math.round(labor.hours * labor.rate) : 0;
-              const paintCost = paint ? Math.round(paint.hours * paint.rate) + paint.materials : 0;
-              const partCost = partInfo?.price || 0;
-              const calcCost = laborCost + paintCost + partCost + sublet;
-              const avgCost = Math.round(entries.reduce((s, e) => s + (e.estimated_cost || 0), 0) / entries.length);
               const totalRuns = assessments.length;
               const confidence = totalRuns >= 3 ? (uniqueRuns >= 3 ? "high" : uniqueRuns >= 2 ? "medium" : "low") : "medium";
               const merged = {
                 component: info.component,
-                operation: bestEntry.operation,
+                operation: derivedOp,
                 description: bestEntry.description,
-                severity: topSev,
-                part_info: partInfo,
-                labor: labor,
-                paint: paint,
-                sublet: sublet,
-                estimated_cost: calcCost > 0 ? calcCost : avgCost,
-                notes: bestEntry.notes || "",
+                severity: medianSev,
+                part_type: bestEntry.part_type || "AFT",
                 _confidence: confidence,
                 _runs: `${uniqueRuns}/${totalRuns}`,
               };
