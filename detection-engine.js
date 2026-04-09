@@ -111,12 +111,12 @@ export const GUARANTEED_PAIRS = {
       add: { component: "radiator_support", severity: "severe", operation: "R&R", part_type: "OEM", description: "Radiator support crushed — severe front bumper + hood impact guarantees structural damage." },
     },
     {
-      condition: (damages) => hasSevere(damages, "radiator_support"),
-      add: { component: "ac_condenser", severity: "severe", operation: "R&R", part_type: "OEM", description: "A/C condenser damaged — mounted on radiator support which is severely impacted." },
+      condition: (damages) => hasComponent(damages, "radiator_support"),
+      add: { component: "ac_condenser", severity: "severe", operation: "R&R", part_type: "OEM", description: "A/C condenser damaged — mounted on radiator support which is impacted." },
     },
     {
-      condition: (damages) => hasSevere(damages, "radiator_support"),
-      add: { component: "radiator", severity: "severe", operation: "R&R", part_type: "OEM", description: "Radiator damaged — mounted on radiator support which is severely impacted." },
+      condition: (damages) => hasComponent(damages, "radiator_support"),
+      add: { component: "radiator", severity: "severe", operation: "R&R", part_type: "OEM", description: "Radiator damaged — mounted on radiator support which is impacted." },
     },
   ],
   rear: [
