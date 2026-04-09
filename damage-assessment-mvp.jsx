@@ -1726,22 +1726,33 @@ GENERAL ACCURACY RULES:
       });
 
       const NUM_RUNS = 3;
-      console.log(`Starting ${NUM_RUNS} parallel Gemini requests...`);
+      const PRIMARY_MODEL = "gemini-2.5-pro";
+      const FALLBACK_MODEL = "gemini-2.5-flash";
+      console.log(`Starting ${NUM_RUNS} parallel Gemini requests (${PRIMARY_MODEL}, fallback: ${FALLBACK_MODEL})...`);
+
+      const geminiApiUrl = (model) =>
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+
+      const fetchGeminiRun = async (runIdx, model) => {
+        const r = await fetch(geminiApiUrl(model), {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: geminiRequestBody,
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error.message);
+        const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+        const clean = txt.replace(/```json|```/g, "").trim();
+        return JSON.parse(clean);
+      };
 
       const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
-        fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: geminiRequestBody }
-        )
-          .then(r => r.json())
-          .then(data => {
-            console.log(`Run ${i + 1} status: OK`);
-            if (data.error) throw new Error(data.error.message);
-            const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-            const clean = txt.replace(/```json|```/g, "").trim();
-            return JSON.parse(clean);
+        fetchGeminiRun(i, PRIMARY_MODEL)
+          .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL}): OK`); return result; })
+          .catch(async (err) => {
+            console.warn(`Run ${i + 1} (${PRIMARY_MODEL}) failed: ${err.message} — retrying with ${FALLBACK_MODEL}...`);
+            return fetchGeminiRun(i, FALLBACK_MODEL)
+              .then(result => { console.log(`Run ${i + 1} (${FALLBACK_MODEL} fallback): OK`); return result; })
+              .catch(err2 => { console.error(`Run ${i + 1} fallback also failed:`, err2.message); return null; });
           })
-          .catch(err => { console.error(`Run ${i + 1} failed:`, err.message); return null; })
       );
 
       const results = await Promise.all(geminiPromises);
