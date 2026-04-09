@@ -1726,8 +1726,8 @@ GENERAL ACCURACY RULES:
       });
 
       const NUM_RUNS = 3;
-      const PRIMARY_MODEL = "gemini-3-flash-preview";
-      const FALLBACK_MODEL = "gemini-2.5-flash";
+      const PRIMARY_MODEL = "gemini-2.5-flash";
+      const FALLBACK_MODEL = "gemini-2.0-flash";
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
       // --- Gemini API ---
