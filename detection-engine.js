@@ -343,8 +343,9 @@ function isSimilar(a, b) {
 /**
  * Merge 3 Gemini runs into consensus damages.
  * - Component must appear in >= minVotes runs
- * - Weight 1-2 indicators: 2+ runs to confirm
- * - Weight 3 indicators: 1 run sufficient (deformation can't be confused)
+ * - ALL indicators require 2+ runs to confirm (no single-run exceptions)
+ * - High-cost components (quarter_panel, rocker_panel) require 3/3 runs
+ * - Structural internals (frame_rail, crossmember, floor_pan) filtered from Gemini detection
  * Returns array of {component, damage_indicators[], description, _confidence, _runs}
  */
 export function mergeRuns(runs, minVotes = 2) {
@@ -378,10 +379,29 @@ export function mergeRuns(runs, minVotes = 2) {
   const totalRuns = runs.length;
   const merged = [];
 
+  // Structural internals that Gemini should NOT detect from photos — only via guaranteed pairs or caption
+  const GEMINI_BLACKLIST = ["frame_rail", "front_frame_rail", "rear_frame_rail", "crossmember",
+    "rear_crossmember", "front_crossmember", "floor_pan", "trunk_floor_pan", "front_floor_pan",
+    "rear_floor_pan", "spare_tire_well", "frame_setup", "strut_tower", "shock_tower", "firewall"];
+
+  // High-cost components prone to hallucination — require ALL runs to agree
+  const HIGH_THRESHOLD = ["quarter_panel", "rear_quarter_panel", "rocker_panel", "a_pillar",
+    "b_pillar", "c_pillar"];
+
   for (const [key, info] of Object.entries(damageMap)) {
+    const comp = (info.component || "").toLowerCase().replace(/_(lh|rh)$/i, "");
     const uniqueRuns = new Set(info.entries.map(e => e.runIdx)).size;
-    if (uniqueRuns < minVotes) {
-      console.log(`[merge] ${key}: ${uniqueRuns}/${totalRuns} runs — FILTERED OUT (< ${minVotes})`);
+
+    // Block structural internals from Gemini detection — these come from guaranteed pairs only
+    if (GEMINI_BLACKLIST.some(b => comp.includes(b))) {
+      console.log(`[merge] ${key}: BLOCKED — structural internal, must come from guaranteed pairs`);
+      continue;
+    }
+
+    // High-cost components require ALL runs to agree (3/3)
+    const requiredVotes = HIGH_THRESHOLD.some(h => comp.includes(h)) ? totalRuns : minVotes;
+    if (uniqueRuns < requiredVotes) {
+      console.log(`[merge] ${key}: ${uniqueRuns}/${totalRuns} runs — FILTERED OUT (need ${requiredVotes})`);
       continue;
     }
 
@@ -395,15 +415,14 @@ export function mergeRuns(runs, minVotes = 2) {
       }
     }
 
-    // Apply weighted consensus: weight 3 needs 1 run, weight 1-2 needs 2+ runs
+    // ALL indicators require 2+ runs to confirm — no single-run exceptions
+    // Gemini can hallucinate "buckled" on undamaged panels; consensus prevents false positives
     const confirmedIndicators = [];
     for (const [ind, runSet] of Object.entries(indicatorCounts)) {
-      const weight = INDICATOR_WEIGHTS[ind] || 1;
-      const minRunsForIndicator = weight >= 3 ? 1 : 2;
-      if (runSet.size >= minRunsForIndicator) {
+      if (runSet.size >= 2) {
         confirmedIndicators.push(ind);
       } else {
-        console.log(`[merge] ${key}: indicator "${ind}" (weight ${weight}) seen in ${runSet.size} runs — FILTERED`);
+        console.log(`[merge] ${key}: indicator "${ind}" seen in ${runSet.size} runs — FILTERED (need 2+)`);
       }
     }
 
