@@ -3047,7 +3047,7 @@ function ReportView({ claim, onBack, isPro = false }) {
     const potentialRows = (a.potential_damages||[]).map((pd, i) => `<tr>
       <td class="tc">${i + 1}. ${pd.component}</td>
       <td class="tc" style="font-style:italic;color:#6B7280;">${pd.reason}</td>
-      <td class="tc" style="text-align:right;font-weight:600;">${pd.estimated_cost != null ? `$${pd.estimated_cost.toLocaleString()}` : `$${(pd.estimated_cost_low||0).toLocaleString()} – $${(pd.estimated_cost_high||0).toLocaleString()}`}</td>
+      <td class="tc" style="text-align:right;font-weight:600;color:#92400E;">Requires inspection</td>
     </tr>`).join("");
 
     return `<!DOCTYPE html>
@@ -3240,10 +3240,9 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
   <div class="section" style="margin-top:20px;">
     <div class="section-title"><span class="dot" style="background:#F59E0B;"></span> Potential Additional Damage <span style="font-size:9px;font-weight:400;color:#6B7280;text-transform:none;letter-spacing:0;">(not visible in photos — requires physical inspection)</span></div>
     <table>
-      <thead><tr><th>Component</th><th>Reason</th><th>Est. Cost</th></tr></thead>
+      <thead><tr><th>Component</th><th>Reason</th><th>Status</th></tr></thead>
       <tbody>${potentialRows}</tbody>
     </table>
-    ${(a.potential_total || a.potential_total_low) ? `<div style="text-align:right;margin-top:8px;font-size:11px;color:#92400E;font-weight:600;">Potential additional: ${a.potential_total != null ? `$${a.potential_total.toLocaleString()}` : `$${(a.potential_total_low||0).toLocaleString()} – $${(a.potential_total_high||0).toLocaleString()}`}</div>` : ""}
   </div>` : ""}
 
   ${recs ? `
@@ -3886,13 +3885,6 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
               ? "Based on vehicle model and damage pattern, these parts may also be affected. Requires physical inspection to confirm."
               : "Based on damage pattern and property type, these areas may also be affected. Requires physical inspection to confirm."}
           </p>
-          {(a.potential_total || a.potential_total_low) > 0 && (
-            <div style={{ fontSize: 13, fontWeight: 600, color: palette.warning, marginBottom: 12 }}>
-              Potential additional cost: {a.potential_total != null
-                ? `$${a.potential_total?.toLocaleString()}`
-                : `$${a.potential_total_low?.toLocaleString()} – $${a.potential_total_high?.toLocaleString()}`}
-            </div>
-          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {a.potential_damages.map((pd, i) => (
               <div key={i} style={{
@@ -3901,10 +3893,8 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{pd.component}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: palette.textMuted }}>
-                    {pd.estimated_cost != null
-                      ? `$${pd.estimated_cost?.toLocaleString()}`
-                      : `$${pd.estimated_cost_low?.toLocaleString()}–$${pd.estimated_cost_high?.toLocaleString()}`}
+                  <span style={{ fontSize: 11, fontWeight: 500, color: palette.warning, background: `${palette.warning}15`, padding: "2px 8px", borderRadius: 6 }}>
+                    Requires inspection
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: palette.textDim, margin: 0, lineHeight: 1.5, fontStyle: "italic" }}>{pd.reason}</p>
