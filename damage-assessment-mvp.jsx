@@ -1730,7 +1730,7 @@ GENERAL ACCURACY RULES:
 
       const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
         fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
           { method: "POST", headers: { "Content-Type": "application/json" }, body: geminiRequestBody }
         )
           .then(r => r.json())
