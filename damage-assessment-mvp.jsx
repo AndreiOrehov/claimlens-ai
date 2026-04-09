@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER, getPartPrice } from "./pricing-db.js";
+import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fetchFreshPricing, mergePricing, STATE_SALES_TAX, LABOR_RATE_CATEGORIES, DIAGNOSTIC_FLAT_RATES, STATE_FRAUD_WARNINGS, STANDARD_FRAUD_DISCLAIMER, ALTERNATE_PARTS_DISCLAIMER, getPartPrice } from "./pricing-db.js";
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
 import { PARTS_CATALOG_PROMPT, ALL_PARTS } from "./parts-catalog.js";
@@ -1584,74 +1584,26 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
       "operation": "R&R|R&I|Repair|Refinish|Blend|Sublet",
       "description": "What happened — describe SPECIFIC visual evidence",
       "severity": "minor|moderate|severe",
-      "part_info": {
-        "type": "OEM|AFT|LKQ|REMAN|RECON|null",
-        "price": number_or_null,
-        "oem_price": number_or_null,
-        "number": "OEM part number if known, else null"
-      },
-      "labor": {
-        "type": "body|mechanical|frame|structural|paint|diagnostic|aluminum|glass",
-        "hours": number,
-        "rate": number
-      },
-      "paint": {
-        "hours": number_or_null,
-        "rate": number_or_null,
-        "materials": number_or_null
-      },
-      "sublet": number_or_null,
-      "estimated_cost": number,
-      "notes": "e.g. 'Includes R&I fog lamp 0.3 hrs', 'Blend adjacent door required'"
+      "part_type": "OEM|AFT|LKQ|REMAN|RECON"
     }
   ],
-  "estimate_summary": {
-    "body_labor_hours": number,
-    "body_labor_amount": number,
-    "mechanical_labor_hours": number,
-    "mechanical_labor_amount": number,
-    "structural_labor_hours": number,
-    "structural_labor_amount": number,
-    "diagnostic_labor_hours": number,
-    "diagnostic_labor_amount": number,
-    "paint_labor_hours": number,
-    "paint_labor_amount": number,
-    "paint_materials": number,
-    "parts_total": number,
-    "parts_oem_total": number,
-    "sublet_total": number,
-    "parts_tax_rate": number_or_null,
-    "parts_tax_amount": number_or_null,
-    "gross_total": number,
-    "net_total": number
-  },
   "potential_damages": [
     {
       "component": "Name of part likely damaged but NOT visible in photos",
-      "reason": "Why you believe this is likely damaged",
-      "estimated_cost": number
+      "reason": "Why you believe this is likely damaged"
     }
   ],
-  "total_estimate": number,
-  "vehicle_acv": {
-    "low": number_or_null,
-    "high": number_or_null,
-    "mid": number_or_null,
-    "source": "Brief basis (e.g. 'Based on KBB/Edmunds/NADA typical ranges')"
-  },
-  "total_loss_analysis": {
-    "repair_to_acv_pct": number_or_null,
-    "threshold_pct": 75,
-    "recommendation": "repair|total_loss|borderline",
-    "reasoning": "1-2 sentence explanation"
-  },
   "adjuster_checklist": [
     "Specific inspection action tied to damage found"
   ],
   "recommendations": ["3-5 actionable next steps"],
   "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
-}`}
+}
+
+IMPORTANT: Do NOT include any dollar amounts, labor hours, labor rates, paint hours, part prices, or cost estimates.
+Your ONLY job is to DETECT and DESCRIBE damage — identify WHAT is damaged, HOW BADLY, and WHAT OPERATION is needed.
+ALL costs, hours, and prices are calculated separately from our database. Do NOT estimate costs.`}
 
 CLOSED PARTS VOCABULARY (MANDATORY):
 You MUST use ONLY component names from the list below. This is a CLOSED vocabulary — do NOT invent, paraphrase, or abbreviate names.
@@ -1664,19 +1616,16 @@ Rules:
 
 ${PARTS_CATALOG_PROMPT}
 
-MITCHELL-STYLE ESTIMATE RULES (for auto claims):
+DAMAGE DETECTION RULES (for auto claims):
+YOU ARE A DAMAGE DETECTOR ONLY. Do NOT estimate costs, labor hours, paint hours, or part prices. ALL pricing is calculated from our database.
+
 1. Each line item represents ONE operation on ONE component. If a fender needs R&R + Refinish, create TWO line items.
-2. Operation types: R&R (remove & replace with new part), R&I (remove & reinstall same part for access), Repair (fix in place — straighten, fill, weld), Refinish (sand, prime, basecoat, clearcoat), Blend (partial refinish of adjacent undamaged panel for color match), Sublet (outsourced: alignment, ADAS calibration, A/C recharge, tow).
-3. Part types: AFT (aftermarket, default when available — insurer standard), OEM (original manufacturer — use when no AFT exists: structural parts, glass, electronics), LKQ (recycled/used — for older vehicles), REMAN (remanufactured — rebuilt to OEM spec: alternators, transmissions, engines), RECON (reconditioned — repaired used part: wheels, bumper reinforcements). Include oem_price for reference.
-4. Labor hours: ALWAYS a single number (e.g. 2.5), NEVER a range. Use standard estimating guide hours. Labor types: body, mechanical, frame, structural (frame pulling/measuring), paint, diagnostic (pre/post scans, ADAS calibration), aluminum (certified aluminum repair — 1.5x body rate), glass. Use the region's actual rates from PRICING REFERENCE DATA.
-5. Paint/Refinish: ONLY for exterior body panels (bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof). Create separate Refinish line items. Add Blend line items for adjacent undamaged panels. Paint materials = paint_hours × $32-40/hr material rate. NOT for: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts, mechanical parts.
-6. Tax: parts_tax_rate and parts_tax_amount in estimate_summary. Tax applies to PARTS ONLY (not labor). Use the state's actual tax rate from PRICING REFERENCE DATA. net_total = gross_total + parts_tax_amount.
-7. estimated_cost per line = part_price + (labor.hours × labor.rate) + (paint.hours × paint.rate) + paint.materials + sublet. Double-check arithmetic.
-8. Sublet items (outsourced): pre/post repair scans ($30-75 each), ADAS calibration ($200-600 per system), 4-wheel alignment ($80-175), A/C recharge, tow.
-7. estimate_summary: sum all labor by type, all parts, all paint materials, all sublet into the summary object. gross_total = sum of everything.
-8. total_estimate = estimate_summary.gross_total (single number, not a range).
-9. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence.
-10. "potential_damages": parts NOT visible but likely damaged. Use single estimated_cost.
+2. Operation types: R&R (remove & replace with new part), R&I (remove & reinstall same part for access), Repair (fix in place — straighten, fill, weld), Refinish (sand, prime, basecoat, clearcoat), Blend (partial refinish of adjacent undamaged panel for color match), Sublet (outsourced: alignment, ADAS calibration, A/C recharge, tow, diagnostic scans).
+3. Part types: AFT (aftermarket, default when available), OEM (use when no AFT exists: structural parts, glass, electronics), LKQ (recycled/used), REMAN (remanufactured), RECON (reconditioned).
+4. Paint/Refinish: ONLY for exterior body panels (bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof). Create separate Refinish line items. Add Blend line items for adjacent undamaged panels. NOT for: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts, mechanical parts.
+5. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence.
+6. "potential_damages": parts NOT visible but likely damaged based on impact severity/direction.
+7. Sublet items: include pre/post repair scans and alignment when front-end damage exists.
 
 SYSTEMATIC ZONE-BY-ZONE SCAN — You MUST inspect EVERY zone in order. For each zone, report any damage found or skip if no damage is visible. Do NOT stop after finding the obvious damage — check ALL zones:
 1. FRONT-CENTER: bumper cover, grille, hood, windshield, emblem
@@ -1702,12 +1651,9 @@ SYMMETRIC DAMAGE CHECK (CRITICAL):
 GENERAL ACCURACY RULES:
 1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags".
 2. Be precise about location: left/right, front/rear.
-3. Use PRICING REFERENCE DATA as baseline.
-4. total_estimate should ONLY include "damages" (visually confirmed). Do NOT add potential_damages.
-5. Keep recommendations to 3-5. Keep flags to 3-5.
-6. "vehicle_acv": Use provided ACV data if available. Else estimate from year/make/model/mileage.
-7. "total_loss_analysis": repair_to_acv_pct = (total_estimate / vehicle_acv.mid) × 100. If >75% → total_loss. If >60% → borderline. Else → repair.
-8. "adjuster_checklist": 5-10 SPECIFIC inspection actions tied to actual detected damage.`;
+3. Keep recommendations to 3-5. Keep flags to 3-5.
+4. "adjuster_checklist": 5-10 SPECIFIC inspection actions tied to actual detected damage.
+5. Do NOT include any dollar amounts, hours, rates, or cost calculations anywhere in your response.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
@@ -1722,7 +1668,7 @@ GENERAL ACCURACY RULES:
       });
       geminiParts.push({ text: systemPrompt + "\n\n" + userPrompt });
 
-      // Strict JSON schema for auto claims — forces Gemini to use exact field names and enum values
+      // Strict JSON schema for auto claims — Gemini ONLY detects damage, no costs/hours/prices
       const autoResponseSchema = type === "auto" ? {
         type: "OBJECT",
         properties: {
@@ -1739,60 +1685,9 @@ GENERAL ACCURACY RULES:
                 operation: { type: "STRING", enum: ["R&R", "R&I", "Repair", "Refinish", "Blend", "Sublet"] },
                 description: { type: "STRING" },
                 severity: { type: "STRING", enum: ["minor", "moderate", "severe"] },
-                part_info: {
-                  type: "OBJECT",
-                  properties: {
-                    type: { type: "STRING", enum: ["OEM", "AFT", "LKQ", "REMAN", "RECON"] },
-                    price: { type: "NUMBER" },
-                    oem_price: { type: "NUMBER" },
-                    number: { type: "STRING" },
-                  },
-                },
-                labor: {
-                  type: "OBJECT",
-                  properties: {
-                    type: { type: "STRING", enum: ["body", "mechanical", "frame", "structural", "paint", "diagnostic", "aluminum", "glass"] },
-                    hours: { type: "NUMBER" },
-                    rate: { type: "NUMBER" },
-                  },
-                  required: ["type", "hours", "rate"],
-                },
-                paint: {
-                  type: "OBJECT",
-                  properties: {
-                    hours: { type: "NUMBER" },
-                    rate: { type: "NUMBER" },
-                    materials: { type: "NUMBER" },
-                  },
-                },
-                sublet: { type: "NUMBER" },
-                estimated_cost: { type: "NUMBER" },
-                notes: { type: "STRING" },
+                part_type: { type: "STRING", enum: ["OEM", "AFT", "LKQ", "REMAN", "RECON"] },
               },
-              required: ["component", "operation", "description", "severity", "estimated_cost"],
-            },
-          },
-          estimate_summary: {
-            type: "OBJECT",
-            properties: {
-              body_labor_hours: { type: "NUMBER" },
-              body_labor_amount: { type: "NUMBER" },
-              mechanical_labor_hours: { type: "NUMBER" },
-              mechanical_labor_amount: { type: "NUMBER" },
-              structural_labor_hours: { type: "NUMBER" },
-              structural_labor_amount: { type: "NUMBER" },
-              diagnostic_labor_hours: { type: "NUMBER" },
-              diagnostic_labor_amount: { type: "NUMBER" },
-              paint_labor_hours: { type: "NUMBER" },
-              paint_labor_amount: { type: "NUMBER" },
-              paint_materials: { type: "NUMBER" },
-              parts_total: { type: "NUMBER" },
-              parts_oem_total: { type: "NUMBER" },
-              sublet_total: { type: "NUMBER" },
-              parts_tax_rate: { type: "NUMBER" },
-              parts_tax_amount: { type: "NUMBER" },
-              gross_total: { type: "NUMBER" },
-              net_total: { type: "NUMBER" },
+              required: ["component", "operation", "description", "severity"],
             },
           },
           potential_damages: {
@@ -1802,27 +1697,7 @@ GENERAL ACCURACY RULES:
               properties: {
                 component: { type: "STRING" },
                 reason: { type: "STRING" },
-                estimated_cost: { type: "NUMBER" },
               },
-            },
-          },
-          total_estimate: { type: "NUMBER" },
-          vehicle_acv: {
-            type: "OBJECT",
-            properties: {
-              low: { type: "NUMBER" },
-              high: { type: "NUMBER" },
-              mid: { type: "NUMBER" },
-              source: { type: "STRING" },
-            },
-          },
-          total_loss_analysis: {
-            type: "OBJECT",
-            properties: {
-              repair_to_acv_pct: { type: "NUMBER" },
-              threshold_pct: { type: "NUMBER" },
-              recommendation: { type: "STRING", enum: ["repair", "total_loss", "borderline"] },
-              reasoning: { type: "STRING" },
             },
           },
           adjuster_checklist: { type: "ARRAY", items: { type: "STRING" } },
@@ -1830,7 +1705,7 @@ GENERAL ACCURACY RULES:
           flags: { type: "ARRAY", items: { type: "STRING" } },
           repair_vs_replace: { type: "STRING", enum: ["repair", "replace", "needs_inspection"] },
         },
-        required: ["summary", "damage_type", "severity", "confidence", "damages", "total_estimate", "recommendations", "flags", "repair_vs_replace"],
+        required: ["summary", "damage_type", "severity", "confidence", "damages", "recommendations", "flags", "repair_vs_replace"],
       } : null;
 
       const geminiRequestBody = JSON.stringify({
@@ -2153,22 +2028,47 @@ GENERAL ACCURACY RULES:
               }
             }
 
-            // 4. Override part PRICES from database (deterministic)
-            if (d.part_info && (op === "R&R" || op === "R&I" || op === "REPLACE")) {
+            // 4. Create/override part PRICES from database (deterministic)
+            if (op === "R&R" || op === "R&I") {
               const dbPrice = getPartPrice(compName, op, vehClass);
               if (dbPrice) {
-                d.part_info.price = dbPrice.price;
-                d.part_info.oem_price = dbPrice.oem_price;
+                const partType = d.part_type || "AFT";
+                d.part_info = {
+                  type: partType,
+                  price: dbPrice.price,
+                  oem_price: dbPrice.oem_price,
+                };
               }
             }
 
-            // 5. Recalculate estimated_cost from overridden breakdown
+            // 5. Create sublet cost from DB for Sublet operations
+            if (op === "SUBLET" && !d.sublet) {
+              const cn = compName.toLowerCase().replace(/[\s\-]+/g, "_");
+              if (cn.includes("pre_repair") || cn.includes("pre_scan")) {
+                d.sublet = (DIAGNOSTIC_FLAT_RATES.pre_repair_scan.low + DIAGNOSTIC_FLAT_RATES.pre_repair_scan.high) / 2;
+              } else if (cn.includes("post_repair") || cn.includes("post_scan")) {
+                d.sublet = (DIAGNOSTIC_FLAT_RATES.post_repair_scan.low + DIAGNOSTIC_FLAT_RATES.post_repair_scan.high) / 2;
+              } else if (cn.includes("align")) {
+                d.sublet = (DIAGNOSTIC_FLAT_RATES.four_wheel_align.low + DIAGNOSTIC_FLAT_RATES.four_wheel_align.high) / 2;
+              } else if (cn.includes("adas") || cn.includes("calibrat")) {
+                d.sublet = (DIAGNOSTIC_FLAT_RATES.adas_static_calibration.low + DIAGNOSTIC_FLAT_RATES.adas_static_calibration.high) / 2;
+              } else if (cn.includes("scan") || cn.includes("diagnostic")) {
+                d.sublet = (DIAGNOSTIC_FLAT_RATES.pre_post_scan_combo.low + DIAGNOSTIC_FLAT_RATES.pre_post_scan_combo.high) / 2;
+              } else if (cn.includes("ac_recharge") || cn.includes("a_c") || cn.includes("recharge")) {
+                d.sublet = 150;
+              } else {
+                d.sublet = 100; // generic sublet fallback
+              }
+              d.sublet = Math.round(d.sublet);
+            }
+
+            // 6. Recalculate estimated_cost from DB-built breakdown
             const laborCost = d.labor ? Math.round(d.labor.hours * d.labor.rate) : 0;
             const paintCost = d.paint ? Math.round(d.paint.hours * d.paint.rate) + (d.paint.materials || 0) : 0;
             const partCost = d.part_info?.price || 0;
             const subletCost = d.sublet || 0;
             const recalc = laborCost + paintCost + partCost + subletCost;
-            if (recalc > 0) d.estimated_cost = recalc;
+            d.estimated_cost = recalc;
           }
           if (overrideCount > 0) console.log(`Overrides applied: ${overrideCount} labor hours, rates=$${stateBodyRate}/hr (class factor: ${classFactor.toFixed(2)})`);
         }
