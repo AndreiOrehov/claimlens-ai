@@ -1898,7 +1898,7 @@ GENERAL ACCURACY RULES:
             const PAINTABLE = ["bumper_cover", "fender", "hood", "door_shell", "door_skin", "trunk_lid", "deck_lid", "quarter_panel", "rocker_panel", "roof_panel", "tailgate", "liftgate", "rear_body_panel", "body_side_panel", "rear_spoiler"];
             const NOT_PAINTABLE = ["reinforcement", "absorber", "bracket", "insulator", "hinge", "latch", "liner", "shield", "sensor", "harness", "mount", "support", "crossmember", "frame_rail", "floor_pan"];
             const cl = compName.toLowerCase();
-            if (!d.paint && (op === "R&R" || op === "R&I" || op === "REFINISH" || op === "BLEND") && PAINTABLE.some(p => cl.includes(p)) && !NOT_PAINTABLE.some(p => cl.includes(p))) {
+            if (!d.paint && (op === "R&R" || op === "R&I" || op === "REPAIR" || op === "REFINISH" || op === "BLEND") && PAINTABLE.some(p => cl.includes(p)) && !NOT_PAINTABLE.some(p => cl.includes(p))) {
               const dbPaint = getRefinishHours(compName);
               if (dbPaint) {
                 const paintMid = Math.round(((dbPaint.hours[0] + dbPaint.hours[1]) / 2) * 10) / 10;
@@ -2272,6 +2272,18 @@ GENERAL ACCURACY RULES:
         if (rec === "total_loss") { assessment.severity = "total_loss"; assessment.repair_vs_replace = "replace"; }
         else if (rec === "borderline") { if (assessment.severity === "total_loss") assessment.severity = "severe"; assessment.repair_vs_replace = "needs_inspection"; }
         else if (rec === "repair") { if (assessment.severity === "total_loss") assessment.severity = "severe"; assessment.repair_vs_replace = "repair"; }
+      } else if (type === "auto" && !assessment.vehicle_acv?.mid) {
+        // ACV lookup failed — show warning block so adjusters know manual appraisal is needed
+        assessment.vehicle_acv = { low: 0, high: 0, mid: 0, source: "unavailable" };
+        const repairEstimate = assessment.total_estimate || 0;
+        assessment.total_loss_analysis = {
+          repair_estimate: repairEstimate,
+          acv_value: 0,
+          repair_to_acv_pct: 0,
+          threshold_pct: 75,
+          recommendation: "needs_appraisal",
+          reasoning: `ACV data unavailable — manual vehicle appraisal required to determine total loss status. Repair estimate: $${repairEstimate.toLocaleString()}.${vYear && parseInt(vYear) < 2010 ? " Vehicle age (" + vYear + ") suggests ACV may be low — total loss likely." : ""}`,
+        };
       }
 
       const claim = {
@@ -2719,11 +2731,16 @@ function ReportView({ claim, onBack, isPro = false }) {
     report += a.total_estimate != null
       ? `ESTIMATED COST: $${a.total_estimate?.toLocaleString()}\n\n`
       : `ESTIMATED COST: $${a.total_estimate_low?.toLocaleString()} — $${a.total_estimate_high?.toLocaleString()}\n\n`;
-    if (claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis) {
+    if (claim.type === "auto" && a.total_loss_analysis) {
       const tla = a.total_loss_analysis;
       report += `TOTAL LOSS ANALYSIS\n${"-".repeat(30)}\n`;
-      report += `Vehicle ACV: $${a.vehicle_acv.low?.toLocaleString()} — $${a.vehicle_acv.high?.toLocaleString()} (mid: $${a.vehicle_acv.mid?.toLocaleString()})\n`;
-      report += `Repair Estimate: $${(tla.repair_estimate || 0).toLocaleString()} | ACV: $${(tla.acv_value || 0).toLocaleString()} | Ratio: ${tla.repair_to_acv_pct}% (threshold: ${tla.threshold_pct}%)\n`;
+      if (tla.recommendation === "needs_appraisal") {
+        report += `Vehicle ACV: UNAVAILABLE — Manual appraisal required\n`;
+        report += `Repair Estimate: $${(tla.repair_estimate || 0).toLocaleString()}\n`;
+      } else {
+        report += `Vehicle ACV: $${a.vehicle_acv?.low?.toLocaleString()} — $${a.vehicle_acv?.high?.toLocaleString()} (mid: $${a.vehicle_acv?.mid?.toLocaleString()})\n`;
+        report += `Repair Estimate: $${(tla.repair_estimate || 0).toLocaleString()} | ACV: $${(tla.acv_value || 0).toLocaleString()} | Ratio: ${tla.repair_to_acv_pct}% (threshold: ${tla.threshold_pct}%)\n`;
+      }
       report += `Determination: ${tla.recommendation?.toUpperCase().replace("_", " ")}\n`;
       report += `${tla.reasoning}\n\n`;
     }
@@ -3029,33 +3046,37 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
     <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:#2563EB;margin-top:4px;"><span>Net Total (incl. tax)</span><span>$${a.estimate_summary.net_total?.toLocaleString()}</span></div>` : ""}
   </div>` : ""}
 
-  ${claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis ? `
-  <div style="margin-bottom:18px;padding:14px 18px;border-radius:8px;border:1px solid ${a.total_loss_analysis.recommendation === "total_loss" ? "#FECACA" : a.total_loss_analysis.recommendation === "borderline" ? "#FDE68A" : "#A7F3D0"};background:${a.total_loss_analysis.recommendation === "total_loss" ? "#FEF2F2" : a.total_loss_analysis.recommendation === "borderline" ? "#FFFBEB" : "#F0FDF4"};">
+  ${claim.type === "auto" && a.total_loss_analysis ? (() => {
+    const tla = a.total_loss_analysis;
+    const isAppraisal = tla.recommendation === "needs_appraisal";
+    const borderColor = tla.recommendation === "total_loss" ? "#FECACA" : tla.recommendation === "borderline" ? "#FDE68A" : isAppraisal ? "#BFDBFE" : "#A7F3D0";
+    const bgColor = tla.recommendation === "total_loss" ? "#FEF2F2" : tla.recommendation === "borderline" ? "#FFFBEB" : isAppraisal ? "#EFF6FF" : "#F0FDF4";
+    const textColor = tla.recommendation === "total_loss" ? "#DC2626" : tla.recommendation === "borderline" ? "#D97706" : isAppraisal ? "#2563EB" : "#059669";
+    const title = tla.recommendation === "total_loss" ? "TOTAL LOSS DETERMINATION" : tla.recommendation === "borderline" ? "BORDERLINE — REQUIRES INSPECTION" : isAppraisal ? "ACV UNAVAILABLE — MANUAL APPRAISAL REQUIRED" : "ECONOMIC REPAIR";
+    const icon = isAppraisal ? "!" : tla.recommendation === "total_loss" || tla.recommendation === "borderline" ? "!" : "✓";
+    return `<div style="margin-bottom:18px;padding:14px 18px;border-radius:8px;border:1px solid ${borderColor};background:${bgColor};">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:${a.total_loss_analysis.recommendation === "total_loss" ? "#DC2626" : a.total_loss_analysis.recommendation === "borderline" ? "#D97706" : "#059669"};">
-        ${a.total_loss_analysis.recommendation === "total_loss" ? "⚠ TOTAL LOSS DETERMINATION" : a.total_loss_analysis.recommendation === "borderline" ? "⚠ BORDERLINE — REQUIRES INSPECTION" : "✓ ECONOMIC REPAIR"}
-      </span>
-      <span style="font-size:12px;font-weight:700;color:${a.total_loss_analysis.recommendation === "total_loss" ? "#DC2626" : a.total_loss_analysis.recommendation === "borderline" ? "#D97706" : "#059669"};">
-        ${a.total_loss_analysis.repair_to_acv_pct}% of ACV
-      </span>
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:${textColor};">${icon} ${title}</span>
+      ${!isAppraisal ? `<span style="font-size:12px;font-weight:700;color:${textColor};">${tla.repair_to_acv_pct}% of ACV</span>` : ""}
     </div>
     <div style="display:flex;gap:12px;margin-bottom:10px;">
       <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
         <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Repair Estimate</div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.total_loss_analysis.repair_estimate||0).toLocaleString()}</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(tla.repair_estimate||0).toLocaleString()}</div>
       </div>
       <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
         <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Vehicle ACV</div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">$${(a.total_loss_analysis.acv_value||0).toLocaleString()}</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">${isAppraisal ? "N/A — Appraisal Required" : "$" + (tla.acv_value||0).toLocaleString()}</div>
       </div>
       <div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #E5E7EB;">
         <div style="font-size:8px;text-transform:uppercase;font-weight:700;color:#9CA3AF;letter-spacing:0.5px;">Threshold</div>
-        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">${a.total_loss_analysis.threshold_pct}%</div>
+        <div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px;">${tla.threshold_pct}%</div>
       </div>
     </div>
-    <div style="font-size:10px;color:#374151;line-height:1.6;">${a.total_loss_analysis.reasoning}</div>
-    ${a.vehicle_acv.source ? `<div style="font-size:8px;color:#9CA3AF;margin-top:4px;">Source: ${a.vehicle_acv.source}</div>` : ""}
-  </div>` : ""}
+    <div style="font-size:10px;color:#374151;line-height:1.6;">${tla.reasoning}</div>
+    ${a.vehicle_acv?.source && a.vehicle_acv.source !== "unavailable" ? `<div style="font-size:8px;color:#9CA3AF;margin-top:4px;">Source: ${a.vehicle_acv.source}</div>` : ""}
+  </div>`;
+  })() : ""}
 
   <div class="section">
     <div class="section-title"><span class="dot"></span> Executive Summary</div>
@@ -3308,59 +3329,65 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
         </div>
 
         {/* Total Loss Analysis + ACV */}
-        {claim.type === "auto" && a.vehicle_acv?.mid && a.total_loss_analysis && (
+        {claim.type === "auto" && a.total_loss_analysis && (() => {
+          const tla = a.total_loss_analysis;
+          const isAppraisal = tla.recommendation === "needs_appraisal";
+          const bgColor = tla.recommendation === "total_loss" ? palette.dangerSoft
+            : tla.recommendation === "borderline" ? palette.warningSoft
+            : isAppraisal ? "rgba(37,99,235,0.08)" : palette.successSoft;
+          const borderColor = tla.recommendation === "total_loss" ? "rgba(255,90,90,0.25)"
+            : tla.recommendation === "borderline" ? "rgba(255,179,71,0.25)"
+            : isAppraisal ? "rgba(37,99,235,0.25)" : "rgba(52,211,153,0.25)";
+          const textColor = tla.recommendation === "total_loss" ? palette.danger
+            : tla.recommendation === "borderline" ? palette.warning
+            : isAppraisal ? "#60A5FA" : palette.success;
+          const title = tla.recommendation === "total_loss" ? "⚠ Total Loss"
+            : tla.recommendation === "borderline" ? "⚠ Borderline"
+            : isAppraisal ? "⚠ ACV Unavailable" : "✓ Economic Repair";
+          return (
           <div style={{
             marginTop: 12, padding: 14, borderRadius: 10,
-            background: a.total_loss_analysis.recommendation === "total_loss" ? palette.dangerSoft
-              : a.total_loss_analysis.recommendation === "borderline" ? palette.warningSoft : palette.successSoft,
-            border: `1px solid ${a.total_loss_analysis.recommendation === "total_loss" ? "rgba(255,90,90,0.25)"
-              : a.total_loss_analysis.recommendation === "borderline" ? "rgba(255,179,71,0.25)" : "rgba(52,211,153,0.25)"}`,
+            background: bgColor, border: `1px solid ${borderColor}`,
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
-                  color: a.total_loss_analysis.recommendation === "total_loss" ? palette.danger
-                    : a.total_loss_analysis.recommendation === "borderline" ? palette.warning : palette.success,
-                }}>
-                  {a.total_loss_analysis.recommendation === "total_loss" ? "⚠ Total Loss" : a.total_loss_analysis.recommendation === "borderline" ? "⚠ Borderline" : "✓ Economic Repair"}
-                </span>
-              </div>
-              <span style={{
-                fontSize: 12, fontWeight: 700,
-                color: a.total_loss_analysis.recommendation === "total_loss" ? palette.danger
-                  : a.total_loss_analysis.recommendation === "borderline" ? palette.warning : palette.success,
-              }}>
-                {a.total_loss_analysis.repair_to_acv_pct}% of ACV
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: textColor }}>
+                {title}
               </span>
+              {!isAppraisal && (
+                <span style={{ fontSize: 12, fontWeight: 700, color: textColor }}>
+                  {tla.repair_to_acv_pct}% of ACV
+                </span>
+              )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
               <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
                 <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Repair Estimate</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
-                  ${a.total_loss_analysis.repair_estimate?.toLocaleString()}
+                  ${tla.repair_estimate?.toLocaleString()}
                 </div>
               </div>
               <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
                 <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Vehicle ACV</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
-                  ${a.total_loss_analysis.acv_value?.toLocaleString()}
+                  {isAppraisal ? "N/A" : `$${tla.acv_value?.toLocaleString()}`}
                 </div>
               </div>
               <div style={{ textAlign: "center", padding: "6px 0", borderRadius: 6, background: "rgba(255,255,255,0.05)" }}>
                 <div style={{ fontSize: 9, color: palette.textDim, textTransform: "uppercase", fontWeight: 600 }}>Threshold</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: palette.text, marginTop: 2 }}>
-                  {a.total_loss_analysis.threshold_pct}%
+                  {tla.threshold_pct}%
                 </div>
               </div>
             </div>
             <div style={{ fontSize: 11, color: palette.textMuted, lineHeight: 1.5 }}>
-              {a.total_loss_analysis.reasoning}
+              {tla.reasoning}
             </div>
-            {a.vehicle_acv.source && (
+            {a.vehicle_acv?.source && a.vehicle_acv.source !== "unavailable" && (
               <div style={{ fontSize: 9, color: palette.textDim, marginTop: 4 }}>Source: {a.vehicle_acv.source}</div>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Photos */}

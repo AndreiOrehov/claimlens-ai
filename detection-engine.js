@@ -23,6 +23,11 @@ export const INDICATOR_WEIGHTS = {
   peeling: 1, discolored: 1, rubbed: 1,
 };
 
+// --- Wear/aging indicators — NOT collision damage, should be filtered when alone ---
+export const WEAR_ONLY_INDICATORS = new Set([
+  "discolored", "faded", "peeling", "rubbed",
+]);
+
 // --- Fuzzy synonym map for non-vocabulary indicators ---
 export const FUZZY_INDICATOR_MAP = {
   smashed: "crushed", crunched: "crushed", mangled: "crushed", destroyed: "crushed",
@@ -92,6 +97,7 @@ export const ALWAYS_REPLACE = [
   "license_plate_lamp", "backup_lamp", "reverse_lamp",
   "ac_condenser", "ac_compressor", "radiator", "alternator", "starter", "water_pump",
   "window_regulator", "window_motor", "door_lock_actuator",
+  "wheel_tire", "tire", "wheel_rim", "rim",
   "turn_signal_lamp", "indicator_lamp", "side_marker_lamp",
   "stop_lamp", "brake_light", "high_mount_stop_lamp", "third_brake_light",
   "daytime_running_lamp", "drl", "reflector",
@@ -235,13 +241,20 @@ function hasComponent(damages, componentSubstring) {
 
 /** Check if component key already exists (deduplication) */
 function existsInSet(existingSet, component) {
-  const key = component.toLowerCase().replace(/_(lh|rh)$/i, "");
+  const raw = component.toLowerCase();
+  const hasSide = /_(lh|rh)$/i.test(raw);
+  const key = hasSide ? raw : raw.replace(/_(lh|rh)$/i, "");
   return existingSet.has(key);
 }
 
-/** Add component to damages array with deduplication */
+/** Add component to damages array with deduplication.
+ *  Sided components (ending _LH/_RH) are deduped WITH their side suffix,
+ *  so fender_liner_LH and fender_liner_RH can coexist.
+ *  Unsided components are deduped by base name. */
 function addDamage(damages, existingSet, item) {
-  const key = (item.component || "").toLowerCase().replace(/_(lh|rh)$/i, "");
+  const raw = (item.component || "").toLowerCase();
+  const hasSide = /_(lh|rh)$/i.test(raw);
+  const key = hasSide ? raw : raw.replace(/_(lh|rh)$/i, "");
   if (existingSet.has(key)) return;
   existingSet.add(key);
   damages.push(item);
@@ -426,6 +439,13 @@ export function mergeRuns(runs, minVotes = 2) {
       }
     }
 
+    // Filter wear-only components: if ALL confirmed indicators are wear/aging (discolored, faded, peeling, rubbed)
+    // and there are no collision indicators, this is pre-existing wear — not an insurance claim item
+    if (confirmedIndicators.length > 0 && confirmedIndicators.every(ind => WEAR_ONLY_INDICATORS.has(ind))) {
+      console.log(`[merge] ${key}: FILTERED — wear-only indicators [${confirmedIndicators.join(", ")}], not collision damage`);
+      continue;
+    }
+
     // Use longest description
     const bestDesc = info.entries.sort((a, b) => (b.description || "").length - (a.description || "").length)[0];
     const confidence = uniqueRuns >= 3 ? "high" : uniqueRuns >= 2 ? "medium" : "low";
@@ -455,7 +475,10 @@ export function mergeRuns(runs, minVotes = 2) {
  */
 export function guaranteedDamages(confirmedDamages, photos, vehicleInfo) {
   const damages = [...confirmedDamages];
-  const existingSet = new Set(damages.map(d => (d.component || "").toLowerCase().replace(/_(lh|rh)$/i, "")));
+  const existingSet = new Set(damages.map(d => {
+    const raw = (d.component || "").toLowerCase();
+    return /_(lh|rh)$/i.test(raw) ? raw : raw.replace(/_(lh|rh)$/i, "");
+  }));
 
   // Detect impact zones from confirmed damages
   const impactFront = damages.some(d => {

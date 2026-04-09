@@ -431,6 +431,30 @@ export const AUTO_PARTS_PRICING = {
     ultra_luxury:{ repair: [200, 500],   replace: [600, 2500],   labor_hours: [0.5, 2] },
     truck_suv:   { repair: [75, 250],    replace: [200, 800],    labor_hours: [0.5, 1] },
   },
+  side_window_glass: {
+    economy:     { repair: [null, null], replace: [100, 250],    labor_hours: [0.5, 1] },
+    midsize:     { repair: [null, null], replace: [150, 350],    labor_hours: [0.5, 1] },
+    premium:     { repair: [null, null], replace: [200, 500],    labor_hours: [0.5, 1.2] },
+    luxury:      { repair: [null, null], replace: [300, 700],    labor_hours: [0.8, 1.5] },
+    ultra_luxury:{ repair: [null, null], replace: [500, 1200],   labor_hours: [1, 2] },
+    truck_suv:   { repair: [null, null], replace: [150, 400],    labor_hours: [0.5, 1] },
+  },
+  door_glass: {
+    economy:     { repair: [null, null], replace: [120, 300],    labor_hours: [0.5, 1] },
+    midsize:     { repair: [null, null], replace: [180, 400],    labor_hours: [0.5, 1] },
+    premium:     { repair: [null, null], replace: [250, 600],    labor_hours: [0.5, 1.2] },
+    luxury:      { repair: [null, null], replace: [350, 800],    labor_hours: [0.8, 1.5] },
+    ultra_luxury:{ repair: [null, null], replace: [600, 1500],   labor_hours: [1, 2] },
+    truck_suv:   { repair: [null, null], replace: [180, 450],    labor_hours: [0.5, 1] },
+  },
+  quarter_glass: {
+    economy:     { repair: [null, null], replace: [80, 200],     labor_hours: [0.5, 1] },
+    midsize:     { repair: [null, null], replace: [120, 300],    labor_hours: [0.5, 1] },
+    premium:     { repair: [null, null], replace: [180, 450],    labor_hours: [0.5, 1.2] },
+    luxury:      { repair: [null, null], replace: [250, 600],    labor_hours: [0.8, 1.5] },
+    ultra_luxury:{ repair: [null, null], replace: [400, 1000],   labor_hours: [1, 2] },
+    truck_suv:   { repair: [null, null], replace: [120, 350],    labor_hours: [0.5, 1] },
+  },
   sunroof: {
     economy:     { repair: [200, 500],   replace: [500, 1200],   labor_hours: [2, 5] },
     midsize:     { repair: [300, 700],   replace: [700, 1800],   labor_hours: [3, 6] },
@@ -510,6 +534,9 @@ const AUTO_COMPONENT_ALIASES = {
   "wheel": "wheel_tire", "tire": "wheel_tire", "wheel and tire": "wheel_tire", "rim": "wheel_tire",
   sunroof: "sunroof", "sun roof": "sunroof", "moonroof": "sunroof", "moon roof": "sunroof",
   "sunroof glass": "sunroof",
+  "side window": "side_window_glass", "side window glass": "side_window_glass", "side glass": "side_window_glass",
+  "door glass": "door_glass", "door window": "door_glass", "door window glass": "door_glass",
+  "quarter glass": "quarter_glass", "quarter window": "quarter_glass", "quarter window glass": "quarter_glass",
 };
 
 // --- Property repair pricing (national averages, USD per unit) ---
