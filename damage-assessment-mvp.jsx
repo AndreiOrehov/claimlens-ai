@@ -1726,8 +1726,9 @@ GENERAL ACCURACY RULES:
       });
 
       const NUM_RUNS = 3;
-      const PRIMARY_MODEL = "gemini-2.0-flash";
-      const FALLBACK_MODEL = "gemini-2.5-flash";
+      const PRIMARY_MODEL = "gemini-2.5-flash";
+      const FALLBACK_1 = "gemini-2.0-flash";
+      const FALLBACK_2 = "gemini-3-flash-preview";
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
       // --- Gemini API ---
@@ -1745,10 +1746,9 @@ GENERAL ACCURACY RULES:
         return JSON.parse(clean);
       };
 
-      console.log(`Starting ${NUM_RUNS} parallel runs (${PRIMARY_MODEL} → retry → ${FALLBACK_MODEL})...`);
+      console.log(`Starting ${NUM_RUNS} parallel runs (${PRIMARY_MODEL} → ${FALLBACK_1} → ${FALLBACK_2})...`);
 
       const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
-        // 1. Primary: gemini-3-flash-preview (Google recommended for image understanding)
         fetchGeminiRun(i, PRIMARY_MODEL)
           .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL}): OK`); return result; })
           .catch(async (err) => {
@@ -1757,11 +1757,15 @@ GENERAL ACCURACY RULES:
             return fetchGeminiRun(i, PRIMARY_MODEL)
               .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL} retry): OK`); return result; })
               .catch(async (err2) => {
-                // 2. Fallback: gemini-2.5-flash
-                console.warn(`Run ${i + 1} (${PRIMARY_MODEL} retry) failed: ${err2.message} — trying ${FALLBACK_MODEL}...`);
-                return fetchGeminiRun(i, FALLBACK_MODEL)
-                  .then(result => { console.log(`Run ${i + 1} (${FALLBACK_MODEL} fallback): OK`); return result; })
-                  .catch(err3 => { console.error(`Run ${i + 1} ALL models failed:`, err3.message); return null; });
+                console.warn(`Run ${i + 1} (${PRIMARY_MODEL} retry) failed: ${err2.message} — trying ${FALLBACK_1}...`);
+                return fetchGeminiRun(i, FALLBACK_1)
+                  .then(result => { console.log(`Run ${i + 1} (${FALLBACK_1}): OK`); return result; })
+                  .catch(async (err3) => {
+                    console.warn(`Run ${i + 1} (${FALLBACK_1}) failed: ${err3.message} — trying ${FALLBACK_2}...`);
+                    return fetchGeminiRun(i, FALLBACK_2)
+                      .then(result => { console.log(`Run ${i + 1} (${FALLBACK_2}): OK`); return result; })
+                      .catch(err4 => { console.error(`Run ${i + 1} ALL models failed:`, err4.message); return null; });
+                  });
               });
           })
       );
