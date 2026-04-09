@@ -3,6 +3,7 @@ import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fet
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
 import { PARTS_CATALOG_PROMPT, ALL_PARTS } from "./parts-catalog.js";
+import { processDetection } from "./detection-engine.js";
 import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassMultiplier } from "./labor-times.js";
 
 // ============================================================
@@ -1576,15 +1577,12 @@ Note: total_estimate should include overhead (10%) + profit (10%) on top of line
 Each damage item should be a specific LINE ITEM (like Xactimate), not a vague area. For example: instead of "bathroom damage", list separate items: "drywall ceiling repair", "tile floor replacement", "vanity replacement", etc.` : `{
   "summary": "Brief 2-3 sentence overview of damage",
   "damage_type": "${type}",
-  "severity": "minor|moderate|severe|total_loss",
   "confidence": 0.0-1.0,
   "damages": [
     {
       "component": "MUST be from CLOSED PARTS VOCABULARY in snake_case (e.g. 'front_bumper_cover', 'front_fender_LH', 'headlamp_assembly_RH')",
-      "operation": "R&R|R&I|Repair|Refinish|Blend|Sublet",
-      "description": "What happened — describe SPECIFIC visual evidence",
-      "severity": "minor|moderate|severe",
-      "part_type": "OEM|AFT|LKQ|REMAN|RECON"
+      "damage_indicators": ["crushed", "torn", "pushed_in"],
+      "description": "What you see — describe SPECIFIC visual evidence (cracks, dents, deformation, misalignment)"
     }
   ],
   "potential_damages": [
@@ -1593,17 +1591,14 @@ Each damage item should be a specific LINE ITEM (like Xactimate), not a vague ar
       "reason": "Why you believe this is likely damaged"
     }
   ],
-  "adjuster_checklist": [
-    "Specific inspection action tied to damage found"
-  ],
   "recommendations": ["3-5 actionable next steps"],
   "flags": ["3-5 distinct red flags or concerns"],
   "repair_vs_replace": "repair|replace|needs_inspection"
 }
 
 IMPORTANT: Do NOT include any dollar amounts, labor hours, labor rates, paint hours, part prices, or cost estimates.
-Your ONLY job is to DETECT and DESCRIBE damage — identify WHAT is damaged, HOW BADLY, and WHAT OPERATION is needed.
-ALL costs, hours, and prices are calculated separately from our database. Do NOT estimate costs.`}
+Do NOT assess severity levels, operation types (R&R, Repair, etc.), or part types (OEM, AFT, etc.).
+Your ONLY job is to DETECT damage and describe WHAT INDICATORS you see. ALL derivation is done by our rules engine.`}
 
 CLOSED PARTS VOCABULARY (MANDATORY):
 You MUST use ONLY component names from the list below. This is a CLOSED vocabulary — do NOT invent, paraphrase, or abbreviate names.
@@ -1616,16 +1611,32 @@ Rules:
 
 ${PARTS_CATALOG_PROMPT}
 
-DAMAGE DETECTION RULES (for auto claims):
-YOU ARE A DAMAGE DETECTOR ONLY. Do NOT estimate costs, labor hours, paint hours, or part prices. ALL pricing is calculated from our database.
+CLOSED DAMAGE INDICATOR VOCABULARY (MANDATORY):
+For each damaged component, you MUST provide "damage_indicators" — an array of strings from this CLOSED vocabulary ONLY.
+Pick ALL indicators that apply to the component. Be thorough — do not skip indicators you can see.
 
-1. Each line item represents ONE operation on ONE component. If a fender needs R&R + Refinish, create TWO line items.
-2. Operation types: R&R (remove & replace with new part), R&I (remove & reinstall same part for access), Repair (fix in place — straighten, fill, weld), Refinish (sand, prime, basecoat, clearcoat), Blend (partial refinish of adjacent undamaged panel for color match), Sublet (outsourced: alignment, ADAS calibration, A/C recharge, tow, diagnostic scans).
-3. Part types: AFT (aftermarket, default when available), OEM (use when no AFT exists: structural parts, glass, electronics), LKQ (recycled/used), REMAN (remanufactured), RECON (reconditioned).
-4. Paint/Refinish: ONLY for exterior body panels (bumpers, fenders, doors, hood, trunk, quarter panels, rocker panels, roof). Create separate Refinish line items. Add Blend line items for adjacent undamaged panels. NOT for: headlights, taillights, fog lights, mirrors, grille, glass, windshield, wheels, tires, interior parts, mechanical parts.
-5. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence.
-6. "potential_damages": parts NOT visible but likely damaged based on impact severity/direction.
-7. Sublet items: include pre/post repair scans and alignment when front-end damage exists.
+DEFORMATION (structure lost, part destroyed):
+  crushed, buckled, collapsed, torn, shattered, severed, kinked, pushed_in
+
+DAMAGE (part compromised but retains shape):
+  cracked, dented, bent, creased, misaligned, punctured, gouged, broken
+
+COSMETIC (surface damage only):
+  scratched, scuffed, chipped, faded, peeling, discolored, rubbed
+
+Rules:
+- Use ONLY indicators from this list. Do NOT invent indicators.
+- Each damage item MUST have at least one indicator.
+- Be SPECIFIC: "buckled" means the panel lost its original shape. "dented" means pushed inward but shape mostly intact. "scratched" means surface marks only.
+- When in doubt between two indicators, include BOTH.
+
+DAMAGE DETECTION RULES (for auto claims):
+YOU ARE A DAMAGE DETECTOR ONLY. You detect WHAT is damaged and describe WHAT YOU SEE.
+Do NOT assess severity, operation type, part type, or any costs. ALL of that is calculated by our rules engine.
+
+1. Each damage item = ONE component with its indicators. Report each damaged component ONCE with ALL applicable indicators.
+2. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence in "description".
+3. "potential_damages": parts NOT visible but likely damaged based on impact direction and energy transfer.
 
 SYSTEMATIC ZONE-BY-ZONE SCAN — You MUST inspect EVERY zone in order. For each zone, report any damage found or skip if no damage is visible. Do NOT stop after finding the obvious damage — check ALL zones:
 1. FRONT-CENTER: bumper cover, grille, hood, windshield, emblem
@@ -1638,22 +1649,20 @@ SYSTEMATIC ZONE-BY-ZONE SCAN — You MUST inspect EVERY zone in order. For each 
 8. REAR-CENTER: rear bumper cover, trunk/tailgate, rear spoiler, license plate area
 9. ROOF & UPPER: roof panel, sunroof, antenna, roof rack
 10. STRUCTURAL (if visible): radiator support, frame rails, core support, bumper reinforcement
-11. SUBLET ITEMS: always include pre/post repair scans + alignment if front-end damage exists
 
 SYMMETRIC DAMAGE CHECK (CRITICAL):
 - Vehicles are symmetric. Every headlamp, fender, fog lamp, mirror, door, tail lamp, quarter panel, and wheel exists on BOTH sides.
 - If you detect damage to ANY sided component (e.g. Headlamp RH), you MUST explicitly inspect the OTHER side (e.g. Headlamp LH) and report it if damaged.
-- For front-end collisions: ALWAYS check BOTH headlamps, BOTH fenders, and BOTH fog lamps separately. Front-end impacts commonly damage both sides.
+- For front-end collisions: ALWAYS check BOTH headlamps, BOTH fenders, and BOTH fog lamps separately.
 - For rear-end collisions: ALWAYS check BOTH tail lamps and BOTH rear quarter panels separately.
-- NEVER report a generic unsided "Headlamp" or "Fender" — ALWAYS specify LH or RH (or report both as separate line items if both are damaged).
-- Symmetric damage is COMMON — do not assume only one side is affected just because the photo angle shows one side more clearly.
+- NEVER report a generic unsided "Headlamp" or "Fender" — ALWAYS specify LH or RH.
+- Symmetric damage is COMMON — do not assume only one side is affected.
 
 GENERAL ACCURACY RULES:
-1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags".
+1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags" — do NOT include it in "damages".
 2. Be precise about location: left/right, front/rear.
 3. Keep recommendations to 3-5. Keep flags to 3-5.
-4. "adjuster_checklist": 5-10 SPECIFIC inspection actions tied to actual detected damage.
-5. Do NOT include any dollar amounts, hours, rates, or cost calculations anywhere in your response.`;
+4. Do NOT include any dollar amounts, hours, rates, or cost calculations anywhere in your response.`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
@@ -1668,13 +1677,12 @@ GENERAL ACCURACY RULES:
       });
       geminiParts.push({ text: systemPrompt + "\n\n" + userPrompt });
 
-      // Strict JSON schema for auto claims — Gemini ONLY detects damage, no costs/hours/prices
+      // Strict JSON schema for auto claims — Gemini ONLY detects damage indicators, no severity/operation/costs
       const autoResponseSchema = type === "auto" ? {
         type: "OBJECT",
         properties: {
           summary: { type: "STRING" },
           damage_type: { type: "STRING", enum: ["auto"] },
-          severity: { type: "STRING", enum: ["minor", "moderate", "severe", "total_loss"] },
           confidence: { type: "NUMBER" },
           damages: {
             type: "ARRAY",
@@ -1682,12 +1690,13 @@ GENERAL ACCURACY RULES:
               type: "OBJECT",
               properties: {
                 component: { type: "STRING" },
-                operation: { type: "STRING", enum: ["R&R", "R&I", "Repair", "Refinish", "Blend", "Sublet"] },
+                damage_indicators: {
+                  type: "ARRAY",
+                  items: { type: "STRING" },
+                },
                 description: { type: "STRING" },
-                severity: { type: "STRING", enum: ["minor", "moderate", "severe"] },
-                part_type: { type: "STRING", enum: ["OEM", "AFT", "LKQ", "REMAN", "RECON"] },
               },
-              required: ["component", "operation", "description", "severity"],
+              required: ["component", "damage_indicators", "description"],
             },
           },
           potential_damages: {
@@ -1700,12 +1709,11 @@ GENERAL ACCURACY RULES:
               },
             },
           },
-          adjuster_checklist: { type: "ARRAY", items: { type: "STRING" } },
           recommendations: { type: "ARRAY", items: { type: "STRING" } },
           flags: { type: "ARRAY", items: { type: "STRING" } },
           repair_vs_replace: { type: "STRING", enum: ["repair", "replace", "needs_inspection"] },
         },
-        required: ["summary", "damage_type", "severity", "confidence", "damages", "recommendations", "flags", "repair_vs_replace"],
+        required: ["summary", "damage_type", "confidence", "damages", "recommendations", "flags", "repair_vs_replace"],
       } : null;
 
       const geminiRequestBody = JSON.stringify({
@@ -1746,121 +1754,66 @@ GENERAL ACCURACY RULES:
 
       // --- Merge multiple assessments ---
       const mergeAssessments = (assessments) => {
-        if (assessments.length === 1) return assessments[0];
-
-        // Normalize component name: sort words alphabetically so "front left window" == "left front window"
-        // Also converts underscores to spaces first so "front_bumper_cover" == "Front Bumper Cover"
-        const normalizeComponent = (name) => {
-          const words = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort();
-          return words.join("_");
-        };
-
-        // Check if two normalized keys are similar enough to merge
-        // IMPORTANT: Never merge LH and RH components — they are distinct parts
-        const SIDE_TOKENS = ["lh", "rh", "left", "right"];
-        const getSide = (key) => {
-          const words = key.split("_");
-          if (words.includes("lh") || words.includes("left")) return "L";
-          if (words.includes("rh") || words.includes("right")) return "R";
-          return null;
-        };
-        const isSimilar = (a, b) => {
-          if (a === b) return true;
-          // Never merge components with different explicit sides
-          const sideA = getSide(a), sideB = getSide(b);
-          if (sideA && sideB && sideA !== sideB) return false;
-          // If one has a side and the other doesn't, don't merge (e.g. "headlamp" vs "headlamp_lh")
-          // This prevents an unsided entry from absorbing a sided entry
-          if ((sideA && !sideB) || (!sideA && sideB)) return false;
-          // One contains the other
-          if (a.includes(b) || b.includes(a)) return true;
-          // Share 70%+ of words
-          const aw = a.split("_"), bw = b.split("_");
-          const shared = aw.filter(w => bw.includes(w)).length;
-          return shared / Math.max(aw.length, bw.length) >= 0.7;
-        };
-
-        // Collect all damages by normalized component name
-        const damageMap = {};
-        const keyMapping = {}; // maps normalized keys to canonical key
-
-        assessments.forEach((a, runIdx) => {
-          (a.damages || []).forEach(d => {
-            const norm = normalizeComponent(d.component);
-            // Find existing similar key
-            let canonKey = null;
-            for (const existing of Object.keys(damageMap)) {
-              if (isSimilar(norm, existing)) { canonKey = existing; break; }
-            }
-            if (!canonKey) canonKey = norm;
-            if (!damageMap[canonKey]) damageMap[canonKey] = { component: d.component, entries: [] };
-            damageMap[canonKey].entries.push({ ...d, runIdx });
-          });
-        });
-
-        // Require 2+ runs to agree on a component (minVotes=2) — filters out
-        // hallucinated structural/mechanical items that inflate estimates by $5K-$15K.
-        // Adjuster will catch anything we miss; false positives hurt credibility more.
-        const minVotes = 2;
-        console.log("Merge damageMap:", Object.entries(damageMap).map(([k, v]) => `${k}(${new Set(v.entries.map(e=>e.runIdx)).size} runs)`).join(", "));
-        const mergedDamages = [];
         const isAutoType = assessments[0]?.damage_type === "auto" || assessments[0]?.damage_type === undefined;
-        for (const [key, info] of Object.entries(damageMap)) {
-          const uniqueRuns = new Set(info.entries.map(e => e.runIdx)).size;
-          if (uniqueRuns >= minVotes) {
-            const entries = info.entries;
-            // MEDIAN severity: sort by weight, pick middle value (prevents outlier inflation)
-            const SEV_WEIGHT = { minor: 1, moderate: 2, severe: 3 };
-            const sevValues = entries.map(e => e.severity || "moderate").sort((a, b) => (SEV_WEIGHT[a] || 2) - (SEV_WEIGHT[b] || 2));
-            const medianSev = sevValues[Math.floor(sevValues.length / 2)];
-            // Use longest description for best detail
-            const bestEntry = entries.sort((a, b) => (b.description || "").length - (a.description || "").length)[0];
 
-            // Mitchell-style auto: Gemini sends detection only, all costs built in post-processing
-            if (bestEntry.operation !== undefined) {
-              // Derive OPERATION from median severity + component type (not from Gemini)
-              const comp = (info.component || "").toLowerCase();
-              // Non-repairable parts: always R&R regardless of severity
-              const ALWAYS_REPLACE = ["headlamp", "headlight", "tail_lamp", "tail_light", "fog_lamp", "fog_light",
-                "grille", "windshield", "back_glass", "rear_window", "side_window", "door_glass", "quarter_glass",
-                "sunroof", "mirror", "sensor", "camera", "radar", "abs_sensor", "parking_sensor",
-                "airbag", "seat_belt", "wiring_harness", "license_plate_lamp", "backup_lamp",
-                "ac_condenser", "ac_compressor", "radiator", "alternator", "starter", "water_pump"];
-              // Sublet/Refinish/Blend operations: keep as-is (Gemini decides correctly for these)
-              const geminiOp = (bestEntry.operation || "").toUpperCase();
-              let derivedOp;
-              if (geminiOp === "SUBLET" || geminiOp === "REFINISH" || geminiOp === "BLEND" || geminiOp === "R&I") {
-                derivedOp = bestEntry.operation; // keep Gemini's choice
-              } else if (ALWAYS_REPLACE.some(p => comp.includes(p))) {
-                derivedOp = "R&R"; // non-repairable → always replace
-              } else if (medianSev === "severe") {
-                derivedOp = "R&R"; // severe → replace
-              } else {
-                derivedOp = "Repair"; // minor/moderate → repair in place
+        // --- AUTO CLAIMS: Use detection engine for deterministic derivation ---
+        // Engine handles: merge runs → indicator consensus → derive severity/operation/part_type
+        //                 → guaranteed structural pairs → R&I cascade → inspection checklist
+        let mergedDamages, engineChecklist, enginePotentials, engineAssessment;
+        if (isAutoType) {
+          const detection = processDetection(assessments, { make: vMake, model: vModel, year: vYear }, photos);
+          mergedDamages = detection.damages;
+          engineChecklist = detection.adjuster_checklist;
+          enginePotentials = detection.potential_damages;
+          engineAssessment = detection.mergedAssessment;
+          console.log(`[engine] ${mergedDamages.length} damages, enrichmentFlags:`, mergedDamages._enrichmentFlags);
+        } else {
+          // --- PROPERTY CLAIMS: Legacy merge with low/high ranges ---
+          const normalizeComponent = (name) => {
+            const words = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort();
+            return words.join("_");
+          };
+          const getSide = (key) => {
+            const words = key.split("_");
+            if (words.includes("lh") || words.includes("left")) return "L";
+            if (words.includes("rh") || words.includes("right")) return "R";
+            return null;
+          };
+          const isSimilar = (a, b) => {
+            if (a === b) return true;
+            const sideA = getSide(a), sideB = getSide(b);
+            if (sideA && sideB && sideA !== sideB) return false;
+            if ((sideA && !sideB) || (!sideA && sideB)) return false;
+            if (a.includes(b) || b.includes(a)) return true;
+            const aw = a.split("_"), bw = b.split("_");
+            const shared = aw.filter(w => bw.includes(w)).length;
+            return shared / Math.max(aw.length, bw.length) >= 0.7;
+          };
+          const damageMap = {};
+          assessments.forEach((a, runIdx) => {
+            (a.damages || []).forEach(d => {
+              const norm = normalizeComponent(d.component);
+              let canonKey = null;
+              for (const existing of Object.keys(damageMap)) {
+                if (isSimilar(norm, existing)) { canonKey = existing; break; }
               }
-
-              const totalRuns = assessments.length;
-              const confidence = totalRuns >= 3 ? (uniqueRuns >= 3 ? "high" : uniqueRuns >= 2 ? "medium" : "low") : "medium";
-              const merged = {
-                component: info.component,
-                operation: derivedOp,
-                description: bestEntry.description,
-                severity: medianSev,
-                part_type: bestEntry.part_type || "AFT",
-                _confidence: confidence,
-                _runs: `${uniqueRuns}/${totalRuns}`,
-              };
-              mergedDamages.push(merged);
-            } else {
-              // Property or legacy format: low/high range
+              if (!canonKey) canonKey = norm;
+              if (!damageMap[canonKey]) damageMap[canonKey] = { component: d.component, entries: [] };
+              damageMap[canonKey].entries.push({ ...d, runIdx });
+            });
+          });
+          const minVotes = assessments.length === 1 ? 1 : 2;
+          mergedDamages = [];
+          for (const [key, info] of Object.entries(damageMap)) {
+            const uniqueRuns = new Set(info.entries.map(e => e.runIdx)).size;
+            if (uniqueRuns >= minVotes) {
+              const entries = info.entries;
+              const bestEntry = entries.sort((a, b) => (b.description || "").length - (a.description || "").length)[0];
               const avgLow = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_low || 0), 0) / entries.length);
               const avgHigh = Math.round(entries.reduce((s, e) => s + (e.estimated_cost_high || 0), 0) / entries.length);
               const merged = {
-                component: info.component,
-                description: bestEntry.description,
-                severity: topSev,
-                estimated_cost_low: avgLow,
-                estimated_cost_high: avgHigh,
+                component: info.component, description: bestEntry.description, severity: bestEntry.severity || "moderate",
+                estimated_cost_low: avgLow, estimated_cost_high: avgHigh,
               };
               if (bestEntry.cost_breakdown) merged.cost_breakdown = bestEntry.cost_breakdown;
               if (bestEntry.room) merged.room = bestEntry.room;
@@ -1871,141 +1824,7 @@ GENERAL ACCURACY RULES:
           }
         }
 
-        // --- Normalize component names to catalog entries ---
-        // Gemini may return "Front Bumper Cover" instead of "front_bumper_cover"
-        if (type === "auto") {
-          const catalogSet = new Set(ALL_PARTS);
-          for (const d of mergedDamages) {
-            if (!d.component) continue;
-            // Strip side suffix, normalize to snake_case
-            const raw = d.component.toLowerCase().replace(/[\s\-]+/g, "_").replace(/[^a-z0-9_]/g, "");
-            const side = raw.match(/_(lh|rh|left|right)$/)?.[1];
-            const base = raw.replace(/_(lh|rh|left|right)$/, "");
-            const sideSuffix = side === "lh" || side === "left" ? "_LH" : side === "rh" || side === "right" ? "_RH" : "";
-            if (catalogSet.has(base)) {
-              d.component = base + sideSuffix;
-            } else {
-              // Fuzzy: find best catalog match by word overlap
-              let bestMatch = null, bestScore = 0;
-              const baseWords = base.split("_").filter(w => w.length > 1);
-              for (const cat of ALL_PARTS) {
-                const catWords = cat.split("_");
-                const shared = baseWords.filter(w => catWords.includes(w)).length;
-                const score = shared / Math.max(baseWords.length, catWords.length);
-                if (score > bestScore && score >= 0.5) { bestScore = score; bestMatch = cat; }
-              }
-              if (bestMatch) d.component = bestMatch + sideSuffix;
-            }
-          }
-        }
-
-        // --- Post-processing PHASE 1: Enrich damage list from user captions & cascading rules ---
-        if (type === "auto") {
-          const existingComps = new Set(mergedDamages.map(d => (d.component || "").toLowerCase().replace(/_(lh|rh)$/i, "")));
-          const addDamage = (comp, op, sev, desc, partType) => {
-            const key = comp.toLowerCase().replace(/_(lh|rh)$/i, "");
-            if (existingComps.has(key)) return; // already exists
-            existingComps.add(key);
-            mergedDamages.push({ component: comp, operation: op, severity: sev, description: desc, part_type: partType || "OEM" });
-          };
-
-          // 1. Caption-to-damage: user photo notes are CONFIRMED damage, not potential
-          const allCaptions = photos.map(p => (p.caption || "").toLowerCase()).join(" ");
-          const hasFrameDamage = allCaptions.match(/frame\s*(damage|bend|buckl|offset|twist|push|crush|deform|crack)/i);
-          const hasStructuralDamage = allCaptions.match(/structural|unibody|rail\s*(damage|bend|buckl)/i) || hasFrameDamage;
-          const impactRear = mergedDamages.some(d => {
-            const c = (d.component || "").toLowerCase();
-            return c.includes("rear") || c.includes("trunk") || c.includes("tail") || c.includes("liftgate") || c.includes("quarter");
-          });
-          const impactFront = mergedDamages.some(d => {
-            const c = (d.component || "").toLowerCase();
-            return c.includes("front") || c.includes("hood") || c.includes("grille") || c.includes("headlamp") || c.includes("radiator");
-          });
-
-          // 2. Structural escalation: frame damage → add structural components
-          if (hasStructuralDamage || hasFrameDamage) {
-            if (impactRear) {
-              addDamage("rear_body_panel", "R&R", "severe", "Structural damage — rear body panel likely deformed from impact.", "OEM");
-              addDamage("rear_frame_rail", "R&R", "severe", "Frame rail damage confirmed — offset/deformation from rear impact.", "OEM");
-              addDamage("trunk_floor_pan", "R&R", "moderate", "Trunk floor likely buckled from rear structural impact.", "OEM");
-              addDamage("rear_crossmember", "R&R", "severe", "Rear crossmember likely damaged from frame offset.", "OEM");
-            }
-            if (impactFront) {
-              addDamage("radiator_support", "R&R", "severe", "Structural damage — radiator support likely crushed.", "OEM");
-              addDamage("front_frame_rail", "R&R", "severe", "Frame rail damage from frontal impact.", "OEM");
-            }
-            // Jig/frame setup — always needed for frame damage
-            addDamage("frame_setup", "Sublet", "severe", "Frame jig setup, measuring, and pulling required for structural realignment.", "OEM");
-          }
-
-          // 3. R&I cascade: major panel replacement triggers R&I of adjacent components
-          const RI_CASCADE = {
-            quarter_panel: [
-              ["wheelhouse_liner", "R&I", "minor", "R&I for quarter panel access"],
-              ["body_side_molding", "R&I", "minor", "R&I for quarter panel access"],
-              ["rear_spoiler", "R&I", "minor", "R&I for quarter panel/liftgate access"],
-            ],
-            rear_body_panel: [
-              ["splash_shield", "R&I", "minor", "R&I for rear body panel access"],
-            ],
-            trunk_lid: [
-              ["rear_spoiler", "R&I", "minor", "R&I for trunk lid replacement"],
-            ],
-            liftgate: [
-              ["rear_spoiler", "R&I", "minor", "R&I for liftgate replacement"],
-              ["liftgate_glass", "R&I", "minor", "Transfer glass to new liftgate"],
-            ],
-            front_fender: [
-              ["fender_liner", "R&I", "minor", "R&I for fender access"],
-            ],
-            hood: [
-              ["hood_insulator", "R&I", "minor", "Transfer insulator to new hood"],
-            ],
-          };
-
-          for (const d of [...mergedDamages]) {
-            const baseComp = (d.component || "").toLowerCase().replace(/_(lh|rh)$/i, "");
-            const op = (d.operation || "").toUpperCase();
-            if (op === "R&R" && RI_CASCADE[baseComp]) {
-              const side = (d.component || "").match(/_(LH|RH)$/i)?.[0] || "";
-              for (const [riComp, riOp, riSev, riDesc] of RI_CASCADE[baseComp]) {
-                addDamage(riComp + side, riOp, riSev, riDesc);
-              }
-            }
-          }
-
-          // 4. Severity-based escalation: if quarter panel is severe, it should be R&R not Repair
-          for (const d of mergedDamages) {
-            const c = (d.component || "").toLowerCase();
-            if (c.includes("quarter_panel") && d.severity === "severe" && d.operation === "Repair") {
-              d.operation = "R&R";
-              d.description = (d.description || "") + " Severity upgraded to R&R — severe quarter panel damage typically requires full replacement.";
-            }
-          }
-
-          // 5. Mechanical R&I for structural rear work (suspension must come out)
-          if (hasStructuralDamage && impactRear) {
-            addDamage("rear_suspension_ri", "Sublet", "moderate", "R&I rear suspension assembly for structural access and repair.", "OEM");
-          }
-          if (hasStructuralDamage && impactFront) {
-            addDamage("front_suspension_ri", "Sublet", "moderate", "R&I front suspension for structural access.", "OEM");
-          }
-
-          // 6. Three-stage paint detection (Tesla, luxury brands)
-          const THREE_STAGE_BRANDS = ["tesla", "lexus", "bmw", "mercedes-benz", "audi", "porsche", "cadillac", "lincoln", "genesis", "volvo", "land rover", "jaguar", "maserati", "bentley", "rolls-royce", "alfa romeo"];
-          const isThreeStage = THREE_STAGE_BRANDS.includes((vMake || "").toLowerCase());
-
-          // Store flags for use in pricing phase
-          mergedDamages._enrichmentFlags = {
-            hasStructuralDamage: !!hasStructuralDamage,
-            hasFrameDamage: !!hasFrameDamage,
-            isThreeStage,
-            impactFront,
-            impactRear,
-          };
-        }
-
-        // --- Post-processing PHASE 2: override Gemini's hours, rates, and prices with our database ---
+        // --- Post-processing PHASE 2: override hours, rates, and prices with our database ---
         // This is the KEY to stable estimates: Gemini detects WHAT is damaged,
         // but all dollar values come from our deterministic database.
         if (type === "auto") {
@@ -2241,14 +2060,7 @@ GENERAL ACCURACY RULES:
           // AI's summary uses pre-override hours which causes summary ≠ line items mismatch.
         }
 
-        // Pick most common severity/repair_vs_replace
-        const pickMostCommon = (arr, field) => {
-          const counts = {};
-          arr.forEach(a => { const v = a[field]; if (v) counts[v] = (counts[v] || 0) + 1; });
-          return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || arr[0]?.[field];
-        };
-
-        // Fuzzy-deduplicate recommendations & flags
+        // Fuzzy-deduplicate helper
         const fuzzyDedup = (items) => {
           const result = [];
           const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort().join(" ");
@@ -2267,37 +2079,48 @@ GENERAL ACCURACY RULES:
           }
           return result;
         };
-        const allRecs = fuzzyDedup(assessments.flatMap(a => a.recommendations || [])).slice(0, 5);
-        const allFlags = fuzzyDedup(assessments.flatMap(a => a.flags || [])).slice(0, 5);
 
-        // Average confidence
-        const avgConf = assessments.reduce((s, a) => s + (a.confidence || 0), 0) / assessments.length;
+        // --- Recommendations, flags, confidence ---
+        const allRecs = isAutoType && engineAssessment
+          ? engineAssessment.recommendations.slice(0, 5)
+          : fuzzyDedup(assessments.flatMap(a => a.recommendations || [])).slice(0, 5);
+        const allFlags = isAutoType && engineAssessment
+          ? engineAssessment.flags.slice(0, 5)
+          : fuzzyDedup(assessments.flatMap(a => a.flags || [])).slice(0, 5);
+        const avgConf = isAutoType && engineAssessment
+          ? engineAssessment.confidence
+          : assessments.reduce((s, a) => s + (a.confidence || 0), 0) / assessments.length;
 
-        // Merge potential_damages (deduplicate by component name)
-        const potentialMap = {};
-        assessments.forEach(a => {
-          (a.potential_damages || []).forEach(pd => {
-            const key = normalizeComponent(pd.component);
-            if (!potentialMap[key]) potentialMap[key] = { ...pd, count: 1 };
-            else {
-              potentialMap[key].count++;
-              // Mitchell auto: single estimated_cost; Property: low/high
-              if (pd.estimated_cost !== undefined) {
-                potentialMap[key].estimated_cost = Math.round((potentialMap[key].estimated_cost + (pd.estimated_cost || 0)) / 2);
-              } else {
-                potentialMap[key].estimated_cost_low = Math.round((potentialMap[key].estimated_cost_low + (pd.estimated_cost_low || 0)) / 2);
-                potentialMap[key].estimated_cost_high = Math.round((potentialMap[key].estimated_cost_high + (pd.estimated_cost_high || 0)) / 2);
+        // --- Potential damages ---
+        let potentialDamages, potentialTotal, potentialTotalLow, potentialTotalHigh;
+        if (isAutoType && enginePotentials) {
+          potentialDamages = enginePotentials;
+          potentialTotal = 0; // No costs on potentials
+          potentialTotalLow = 0;
+          potentialTotalHigh = 0;
+        } else {
+          // Property: merge potential damages with costs
+          const normalizeComp = (name) => name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort().join("_");
+          const potentialMap = {};
+          assessments.forEach(a => {
+            (a.potential_damages || []).forEach(pd => {
+              const key = normalizeComp(pd.component || "");
+              if (!potentialMap[key]) potentialMap[key] = { ...pd, count: 1 };
+              else {
+                potentialMap[key].count++;
+                if (pd.estimated_cost_low !== undefined) {
+                  potentialMap[key].estimated_cost_low = Math.round(((potentialMap[key].estimated_cost_low || 0) + (pd.estimated_cost_low || 0)) / 2);
+                  potentialMap[key].estimated_cost_high = Math.round(((potentialMap[key].estimated_cost_high || 0) + (pd.estimated_cost_high || 0)) / 2);
+                }
+                if ((pd.reason || "").length > (potentialMap[key].reason || "").length) potentialMap[key].reason = pd.reason;
               }
-              if ((pd.reason || "").length > (potentialMap[key].reason || "").length) potentialMap[key].reason = pd.reason;
-            }
+            });
           });
-        });
-        const potentialDamages = Object.values(potentialMap).map(({ count, ...rest }) => rest);
-        const potentialTotal = isMitchell
-          ? potentialDamages.reduce((s, d) => s + (d.estimated_cost || 0), 0)
-          : 0;
-        const potentialTotalLow = isMitchell ? potentialTotal : potentialDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
-        const potentialTotalHigh = isMitchell ? potentialTotal : potentialDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+          potentialDamages = Object.values(potentialMap).map(({ count, ...rest }) => rest);
+          potentialTotal = 0;
+          potentialTotalLow = potentialDamages.reduce((s, d) => s + (d.estimated_cost_low || 0), 0);
+          potentialTotalHigh = potentialDamages.reduce((s, d) => s + (d.estimated_cost_high || 0), 0);
+        }
 
         // Merge vehicle_acv — average across runs that have it
         const acvRuns = assessments.filter(a => a.vehicle_acv?.mid);
@@ -2311,10 +2134,9 @@ GENERAL ACCURACY RULES:
           };
         }
 
-        // Merge total_loss_analysis — use SINGLE estimate vs ACV (like real adjusters)
+        // Merge total_loss_analysis — use SINGLE estimate vs ACV
         let mergedTotalLoss = null;
         if (mergedAcv?.mid) {
-          // Mitchell auto: use totalEstimate directly; Property: weighted midpoint
           const repairEstimate = isMitchell ? totalEstimate : Math.round(totalLow * 0.6 + totalHigh * 0.4);
           const acvValue = mergedAcv.mid;
           const pct = Math.round((repairEstimate / acvValue) * 100);
@@ -2327,15 +2149,26 @@ GENERAL ACCURACY RULES:
           mergedTotalLoss = { repair_estimate: repairEstimate, acv_value: acvValue, repair_to_acv_pct: pct, threshold_pct: 75, recommendation: rec, reasoning };
         }
 
-        // Merge adjuster_checklist — deduplicate across runs
-        const allChecklist = fuzzyDedup(assessments.flatMap(a => a.adjuster_checklist || [])).slice(0, 10);
+        // Adjuster checklist: engine provides deterministic list for auto; property uses Gemini
+        const allChecklist = isAutoType && engineChecklist
+          ? engineChecklist.slice(0, 15)
+          : fuzzyDedup(assessments.flatMap(a => a.adjuster_checklist || [])).slice(0, 10);
+
+        // Determine severity from total_loss analysis or engine
+        const baseSeverity = isAutoType && engineAssessment
+          ? engineAssessment.severity
+          : assessments.reduce((counts, a) => { const v = a.severity; if (v) counts[v] = (counts[v] || 0) + 1; return counts; }, {});
+        const pickMostCommon = (counts) => Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "moderate";
+        const severity = mergedTotalLoss?.recommendation === "total_loss" ? "total_loss"
+          : typeof baseSeverity === "string" ? baseSeverity
+          : pickMostCommon(baseSeverity);
 
         const result = {
-          summary: assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0].summary,
+          summary: isAutoType && engineAssessment
+            ? engineAssessment.summary
+            : assessments.sort((a, b) => (b.summary || "").length - (a.summary || "").length)[0]?.summary || "",
           damage_type: assessments[0].damage_type,
-          severity: mergedTotalLoss?.recommendation === "total_loss" ? "total_loss"
-            : mergedTotalLoss?.recommendation === "repair" && pickMostCommon(assessments, "severity") === "total_loss" ? "severe"
-            : pickMostCommon(assessments, "severity"),
+          severity,
           confidence: Math.round(avgConf * 100) / 100,
           damages: mergedDamages,
           vehicle_acv: mergedAcv,
@@ -2347,18 +2180,17 @@ GENERAL ACCURACY RULES:
           repair_vs_replace: mergedTotalLoss?.recommendation === "total_loss" ? "replace"
             : mergedTotalLoss?.recommendation === "borderline" ? "needs_inspection"
             : mergedTotalLoss?.recommendation === "repair" ? "repair"
-            : pickMostCommon(assessments, "repair_vs_replace"),
+            : isAutoType && engineAssessment ? engineAssessment.repair_vs_replace
+            : "needs_inspection",
           _runs: assessments.length,
-          _consensus: `${mergedDamages.length} components confirmed by ${minVotes}+ of ${assessments.length} runs`,
+          _consensus: `${mergedDamages.length} components (detection engine)`,
         };
 
         if (isMitchell) {
-          // Mitchell auto: single total, estimate_summary
           result.total_estimate = totalEstimate;
           result.estimate_summary = mergedEstimateSummary;
           result.potential_total = potentialTotal;
         } else {
-          // Property: low/high ranges
           result.total_estimate_low = totalLow;
           result.total_estimate_high = totalHigh;
           result.potential_total_low = potentialTotalLow;
