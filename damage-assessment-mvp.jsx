@@ -2054,7 +2054,7 @@ GENERAL ACCURACY RULES:
             const op = (d.operation || "").toUpperCase();
 
             // 0. CREATE labor/paint from DB if Gemini omitted them (JSON schema makes them optional)
-            if (!d.labor && op !== "SUBLET") {
+            if (!d.labor && op !== "SUBLET" && op !== "REFINISH" && op !== "BLEND") {
               const dbEntry = getLaborHours(compName);
               if (dbEntry) {
                 const dbMid = Math.round(((dbEntry.hours[0] + dbEntry.hours[1]) / 2) * classFactor * 10) / 10;
@@ -2080,7 +2080,7 @@ GENERAL ACCURACY RULES:
             }
             // Create paint for exterior R&R panels that need refinish
             const PAINTABLE = ["bumper", "fender", "hood", "door", "trunk", "quarter_panel", "rocker", "roof", "tailgate", "liftgate"];
-            if (!d.paint && (op === "R&R" || op === "R&I") && PAINTABLE.some(p => compName.toLowerCase().includes(p))) {
+            if (!d.paint && (op === "R&R" || op === "R&I" || op === "REFINISH" || op === "BLEND") && PAINTABLE.some(p => compName.toLowerCase().includes(p))) {
               const dbPaint = getRefinishHours(compName);
               if (dbPaint) {
                 const paintMid = Math.round(((dbPaint.hours[0] + dbPaint.hours[1]) / 2) * 10) / 10;
@@ -2133,6 +2133,9 @@ GENERAL ACCURACY RULES:
                   overrideCount++;
                 }
               }
+            } else if (d.labor && (op === "REFINISH" || op === "BLEND")) {
+              // Refinish/Blend: ALL work is in paint hours, not body labor
+              d.labor.hours = 0;
             } else if (d.labor && op === "SUBLET") {
               // Sublet: zero out labor hours (cost is in sublet field)
               d.labor.hours = 0;
