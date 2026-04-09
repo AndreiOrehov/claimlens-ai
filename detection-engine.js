@@ -676,7 +676,46 @@ export function processDetection(geminiRuns, vehicleInfo, photos) {
   // 1. Consensus merge — components + weighted indicator union
   const mergedComponents = mergeRuns(validRuns, validRuns.length === 1 ? 1 : 2);
 
-  // 2. Derive severity, operation, part_type for each component
+  // 2. Post-merge component correction: fix Gemini misidentifications based on description
+  for (const mc of mergedComponents) {
+    const desc = (mc.description || "").toLowerCase();
+    const comp = (mc.component || "").toLowerCase();
+    const side = comp.match(/_(lh|rh)$/i)?.[0] || "";
+    const baseSide = side || (desc.includes("left") ? "_LH" : desc.includes("right") ? "_RH" : "");
+
+    // Tire/wheel misidentified as bumper, fender, or other body panel
+    if (/\b(tire|tyre|flat|deflat|inflat|wheel\b.*(?:damage|bent|crack|miss))/i.test(desc) &&
+        !comp.includes("wheel") && !comp.includes("tire")) {
+      console.log(`[detection] Correcting ${mc.component} → wheel_tire${baseSide} (description mentions tire/flat)`);
+      mc.component = `wheel_tire${baseSide}`;
+      // Flat tire = missing/broken, not cosmetic — upgrade indicators
+      if (!mc.damage_indicators.some(i => INDICATOR_WEIGHTS[i] >= 2)) {
+        mc.damage_indicators = [...mc.damage_indicators.filter(i => INDICATOR_WEIGHTS[i] >= 2), "broken"];
+      }
+    }
+
+    // Missing door glass misidentified as door_shell replacement
+    if (/\b(glass.*miss|miss.*glass|window.*miss|miss.*window|glass.*absent|glass.*gone|tape.*opening|covering.*opening)\b/i.test(desc) &&
+        (comp.includes("door_shell") || comp.includes("door_skin"))) {
+      console.log(`[detection] Correcting ${mc.component} → side_window_glass${baseSide} (description mentions missing glass)`);
+      mc.component = `side_window_glass${baseSide}`;
+      if (!mc.damage_indicators.includes("broken")) {
+        mc.damage_indicators = ["broken"];
+      }
+    }
+
+    // Missing quarter glass — ensure correct component
+    if (/\b(quarter.*glass.*miss|miss.*quarter.*glass|quarter.*window.*miss)\b/i.test(desc) &&
+        !comp.includes("quarter_glass")) {
+      console.log(`[detection] Correcting ${mc.component} → quarter_glass${baseSide} (description mentions missing quarter glass)`);
+      mc.component = `quarter_glass${baseSide}`;
+      if (!mc.damage_indicators.includes("broken")) {
+        mc.damage_indicators = ["broken"];
+      }
+    }
+  }
+
+  // 3. Derive severity, operation, part_type for each component
   const damages = mergedComponents.map(mc => ({
     component: mc.component,
     operation: deriveOperation(mc.component, deriveSeverity(mc.damage_indicators)),
@@ -688,10 +727,10 @@ export function processDetection(geminiRuns, vehicleInfo, photos) {
     _indicators: mc.damage_indicators, // preserve for debugging
   }));
 
-  // 3. Catalog normalize component names
+  // 4. Catalog normalize component names
   catalogNormalize(damages);
 
-  // 4. Guaranteed damages + R&I cascade + sublets
+  // 5. Guaranteed damages + R&I cascade + sublets
   const { damages: enrichedDamages, enrichmentFlags } = guaranteedDamages(damages, photos, vehicleInfo);
 
   // 5. Attach enrichment flags to array (Pricing Phase 2 reads this)

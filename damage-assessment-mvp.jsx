@@ -1658,6 +1658,14 @@ SYMMETRIC DAMAGE CHECK (CRITICAL):
 - NEVER report a generic unsided "Headlamp" or "Fender" — ALWAYS specify LH or RH.
 - Symmetric damage is COMMON — do not assume only one side is affected.
 
+COMPONENT IDENTIFICATION RULES (CRITICAL — read carefully):
+- FLAT/DEFLATED/DAMAGED TIRE: Report as "wheel_tire_LH" or "wheel_tire_RH" — NEVER as bumper, fender, or any other component. A tire is a TIRE, not a body panel.
+- MISSING DOOR GLASS: Report as "side_window_glass_LH" or "side_window_glass_RH" — NOT as "front_door_shell" or "rear_door_shell". Missing glass does NOT mean the door needs replacement.
+- MISSING REAR QUARTER GLASS: Report as "quarter_glass_LH" or "quarter_glass_RH".
+- MISSING WINDSHIELD: Report as "windshield".
+- A component with TAPE covering an opening = the component behind the tape is MISSING (glass, panel, etc.), not the tape itself.
+- Report the ACTUAL damaged/missing component, not adjacent panels. If a tire is flat, report the tire — not the bumper or fender near it.
+
 GENERAL ACCURACY RULES:
 1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags" — do NOT include it in "damages".
 2. Be precise about location: left/right, front/rear.
