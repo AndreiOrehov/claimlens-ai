@@ -1723,7 +1723,6 @@ GENERAL ACCURACY RULES:
           responseMimeType: "application/json",
           ...(autoResponseSchema ? { responseSchema: autoResponseSchema } : {}),
         },
-        thinkingConfig: { thinkingBudget: 0 },
       });
 
       const NUM_RUNS = 3;
