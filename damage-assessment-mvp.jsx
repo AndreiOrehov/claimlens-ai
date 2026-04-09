@@ -1723,6 +1723,7 @@ GENERAL ACCURACY RULES:
           responseMimeType: "application/json",
           ...(autoResponseSchema ? { responseSchema: autoResponseSchema } : {}),
         },
+        thinkingConfig: { thinkingBudget: 0 },
       });
 
       const NUM_RUNS = 3;
@@ -1780,7 +1781,7 @@ GENERAL ACCURACY RULES:
         return JSON.parse(clean);
       };
 
-      console.log(`Starting ${NUM_RUNS} parallel runs (GPT-4o → Gemini 2.5 Pro → Gemini 2.5 Flash)...`);
+      console.log(`Starting ${NUM_RUNS} parallel runs (GPT-4o → Gemini 3 Flash → Gemini 2.5 Flash)...`);
 
       const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
         // 1. GPT-4o primary
@@ -1792,13 +1793,13 @@ GENERAL ACCURACY RULES:
             return fetchOpenAIRun(i)
               .then(result => { console.log(`Run ${i + 1} (gpt-4o retry): OK`); return result; })
               .catch(async (err2) => {
-                // 2. Gemini 2.5 Pro fallback
-                console.warn(`Run ${i + 1} (gpt-4o retry) failed: ${err2.message} — trying gemini-2.5-pro...`);
-                return fetchGeminiRun(i, "gemini-2.5-pro")
-                  .then(result => { console.log(`Run ${i + 1} (gemini-2.5-pro fallback): OK`); return result; })
+                // 2. Gemini 3 Flash Preview fallback (recommended for image understanding)
+                console.warn(`Run ${i + 1} (gpt-4o retry) failed: ${err2.message} — trying gemini-3-flash-preview...`);
+                return fetchGeminiRun(i, "gemini-3-flash-preview")
+                  .then(result => { console.log(`Run ${i + 1} (gemini-3-flash-preview fallback): OK`); return result; })
                   .catch(async (err3) => {
                     // 3. Gemini 2.5 Flash last resort
-                    console.warn(`Run ${i + 1} (gemini-2.5-pro) failed: ${err3.message} — trying gemini-2.5-flash...`);
+                    console.warn(`Run ${i + 1} (gemini-3-flash-preview) failed: ${err3.message} — trying gemini-2.5-flash...`);
                     return fetchGeminiRun(i, "gemini-2.5-flash")
                       .then(result => { console.log(`Run ${i + 1} (gemini-2.5-flash fallback): OK`); return result; })
                       .catch(err4 => { console.error(`Run ${i + 1} ALL models failed:`, err4.message); return null; });
