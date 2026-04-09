@@ -2063,8 +2063,10 @@ GENERAL ACCURACY RULES:
               }
             }
             // Create paint for exterior R&R panels that need refinish
-            const PAINTABLE = ["bumper", "fender", "hood", "door", "trunk", "quarter_panel", "rocker", "roof", "tailgate", "liftgate"];
-            if (!d.paint && (op === "R&R" || op === "R&I" || op === "REFINISH" || op === "BLEND") && PAINTABLE.some(p => compName.toLowerCase().includes(p))) {
+            const PAINTABLE = ["bumper_cover", "fender", "hood", "door_shell", "door_skin", "trunk_lid", "deck_lid", "quarter_panel", "rocker_panel", "roof_panel", "tailgate", "liftgate", "rear_body_panel", "body_side_panel", "rear_spoiler"];
+            const NOT_PAINTABLE = ["reinforcement", "absorber", "bracket", "insulator", "hinge", "latch", "liner", "shield", "sensor", "harness", "mount", "support", "crossmember", "frame_rail", "floor_pan"];
+            const cl = compName.toLowerCase();
+            if (!d.paint && (op === "R&R" || op === "R&I" || op === "REFINISH" || op === "BLEND") && PAINTABLE.some(p => cl.includes(p)) && !NOT_PAINTABLE.some(p => cl.includes(p))) {
               const dbPaint = getRefinishHours(compName);
               if (dbPaint) {
                 const paintMid = Math.round(((dbPaint.hours[0] + dbPaint.hours[1]) / 2) * 10) / 10;
