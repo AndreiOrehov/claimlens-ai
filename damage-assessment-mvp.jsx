@@ -1727,7 +1727,7 @@ GENERAL ACCURACY RULES:
 
       const NUM_RUNS = 3;
       const PRIMARY_MODEL = "gemini-2.5-flash";
-      const FALLBACK_1 = "gemini-2.0-flash";
+      const FALLBACK_1 = "gemini-2.5-flash-lite";
       const FALLBACK_2 = "gemini-3-flash-preview";
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
