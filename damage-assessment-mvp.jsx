@@ -1912,7 +1912,113 @@ GENERAL ACCURACY RULES:
           }
         }
 
-        // --- Post-processing: override Gemini's hours, rates, and prices with our database ---
+        // --- Post-processing PHASE 1: Enrich damage list from user captions & cascading rules ---
+        if (type === "auto") {
+          const existingComps = new Set(mergedDamages.map(d => (d.component || "").toLowerCase().replace(/_(lh|rh)$/i, "")));
+          const addDamage = (comp, op, sev, desc, partType) => {
+            const key = comp.toLowerCase().replace(/_(lh|rh)$/i, "");
+            if (existingComps.has(key)) return; // already exists
+            existingComps.add(key);
+            mergedDamages.push({ component: comp, operation: op, severity: sev, description: desc, part_type: partType || "OEM" });
+          };
+
+          // 1. Caption-to-damage: user photo notes are CONFIRMED damage, not potential
+          const allCaptions = photos.map(p => (p.caption || "").toLowerCase()).join(" ");
+          const hasFrameDamage = allCaptions.match(/frame\s*(damage|bend|buckl|offset|twist|push|crush|deform|crack)/i);
+          const hasStructuralDamage = allCaptions.match(/structural|unibody|rail\s*(damage|bend|buckl)/i) || hasFrameDamage;
+          const impactRear = mergedDamages.some(d => {
+            const c = (d.component || "").toLowerCase();
+            return c.includes("rear") || c.includes("trunk") || c.includes("tail") || c.includes("liftgate") || c.includes("quarter");
+          });
+          const impactFront = mergedDamages.some(d => {
+            const c = (d.component || "").toLowerCase();
+            return c.includes("front") || c.includes("hood") || c.includes("grille") || c.includes("headlamp") || c.includes("radiator");
+          });
+
+          // 2. Structural escalation: frame damage → add structural components
+          if (hasStructuralDamage || hasFrameDamage) {
+            if (impactRear) {
+              addDamage("rear_body_panel", "R&R", "severe", "Structural damage — rear body panel likely deformed from impact.", "OEM");
+              addDamage("rear_frame_rail", "R&R", "severe", "Frame rail damage confirmed — offset/deformation from rear impact.", "OEM");
+              addDamage("trunk_floor_pan", "R&R", "moderate", "Trunk floor likely buckled from rear structural impact.", "OEM");
+              addDamage("rear_crossmember", "R&R", "severe", "Rear crossmember likely damaged from frame offset.", "OEM");
+            }
+            if (impactFront) {
+              addDamage("radiator_support", "R&R", "severe", "Structural damage — radiator support likely crushed.", "OEM");
+              addDamage("front_frame_rail", "R&R", "severe", "Frame rail damage from frontal impact.", "OEM");
+            }
+            // Jig/frame setup — always needed for frame damage
+            addDamage("frame_setup", "Sublet", "severe", "Frame jig setup, measuring, and pulling required for structural realignment.", "OEM");
+          }
+
+          // 3. R&I cascade: major panel replacement triggers R&I of adjacent components
+          const RI_CASCADE = {
+            quarter_panel: [
+              ["wheelhouse_liner", "R&I", "minor", "R&I for quarter panel access"],
+              ["body_side_molding", "R&I", "minor", "R&I for quarter panel access"],
+              ["rear_spoiler", "R&I", "minor", "R&I for quarter panel/liftgate access"],
+            ],
+            rear_body_panel: [
+              ["splash_shield", "R&I", "minor", "R&I for rear body panel access"],
+            ],
+            trunk_lid: [
+              ["rear_spoiler", "R&I", "minor", "R&I for trunk lid replacement"],
+            ],
+            liftgate: [
+              ["rear_spoiler", "R&I", "minor", "R&I for liftgate replacement"],
+              ["liftgate_glass", "R&I", "minor", "Transfer glass to new liftgate"],
+            ],
+            front_fender: [
+              ["fender_liner", "R&I", "minor", "R&I for fender access"],
+            ],
+            hood: [
+              ["hood_insulator", "R&I", "minor", "Transfer insulator to new hood"],
+            ],
+          };
+
+          for (const d of [...mergedDamages]) {
+            const baseComp = (d.component || "").toLowerCase().replace(/_(lh|rh)$/i, "");
+            const op = (d.operation || "").toUpperCase();
+            if (op === "R&R" && RI_CASCADE[baseComp]) {
+              const side = (d.component || "").match(/_(LH|RH)$/i)?.[0] || "";
+              for (const [riComp, riOp, riSev, riDesc] of RI_CASCADE[baseComp]) {
+                addDamage(riComp + side, riOp, riSev, riDesc);
+              }
+            }
+          }
+
+          // 4. Severity-based escalation: if quarter panel is severe, it should be R&R not Repair
+          for (const d of mergedDamages) {
+            const c = (d.component || "").toLowerCase();
+            if (c.includes("quarter_panel") && d.severity === "severe" && d.operation === "Repair") {
+              d.operation = "R&R";
+              d.description = (d.description || "") + " Severity upgraded to R&R — severe quarter panel damage typically requires full replacement.";
+            }
+          }
+
+          // 5. Mechanical R&I for structural rear work (suspension must come out)
+          if (hasStructuralDamage && impactRear) {
+            addDamage("rear_suspension_ri", "Sublet", "moderate", "R&I rear suspension assembly for structural access and repair.", "OEM");
+          }
+          if (hasStructuralDamage && impactFront) {
+            addDamage("front_suspension_ri", "Sublet", "moderate", "R&I front suspension for structural access.", "OEM");
+          }
+
+          // 6. Three-stage paint detection (Tesla, luxury brands)
+          const THREE_STAGE_BRANDS = ["tesla", "lexus", "bmw", "mercedes-benz", "audi", "porsche", "cadillac", "lincoln", "genesis", "volvo", "land rover", "jaguar", "maserati", "bentley", "rolls-royce", "alfa romeo"];
+          const isThreeStage = THREE_STAGE_BRANDS.includes((vMake || "").toLowerCase());
+
+          // Store flags for use in pricing phase
+          mergedDamages._enrichmentFlags = {
+            hasStructuralDamage: !!hasStructuralDamage,
+            hasFrameDamage: !!hasFrameDamage,
+            isThreeStage,
+            impactFront,
+            impactRear,
+          };
+        }
+
+        // --- Post-processing PHASE 2: override Gemini's hours, rates, and prices with our database ---
         // This is the KEY to stable estimates: Gemini detects WHAT is damaged,
         // but all dollar values come from our deterministic database.
         if (type === "auto") {
@@ -2027,6 +2133,11 @@ GENERAL ACCURACY RULES:
                 d.paint.hours = op === "BLEND"
                   ? Math.round(paintMid * LABOR_TIMES.blend.two_stage_pct * 10) / 10
                   : Math.round(paintMid * 10) / 10;
+                // Three-stage paint: +35% hours for Tesla, luxury brands (pearl/metallic tricoat)
+                const flags = mergedDamages._enrichmentFlags;
+                if (flags?.isThreeStage) {
+                  d.paint.hours = Math.round(d.paint.hours * 1.35 * 10) / 10;
+                }
                 d.paint.materials = Math.round(d.paint.hours * (LABOR_TIMES.paint_materials.mid || 40));
               }
             }
@@ -2059,6 +2170,14 @@ GENERAL ACCURACY RULES:
                 d.sublet = (DIAGNOSTIC_FLAT_RATES.pre_post_scan_combo.low + DIAGNOSTIC_FLAT_RATES.pre_post_scan_combo.high) / 2;
               } else if (cn.includes("ac_recharge") || cn.includes("a_c") || cn.includes("recharge")) {
                 d.sublet = 150;
+              } else if (cn.includes("frame_setup") || cn.includes("jig")) {
+                // Frame jig setup: 8 hrs × frame rate (from GEICO data)
+                const frameRate = Math.round(stateBodyRate * (LABOR_RATE_CATEGORIES.frame?.multiplier || 1.5));
+                d.sublet = 8 * frameRate;
+              } else if (cn.includes("suspension_ri") || cn.includes("susp")) {
+                // Rear/front suspension R&I: ~5-8 hrs mechanical
+                const mechRate = Math.round(stateBodyRate * (LABOR_RATE_CATEGORIES.mechanical?.multiplier || 2.0));
+                d.sublet = 6 * mechRate;
               } else {
                 d.sublet = 100; // generic sublet fallback
               }
