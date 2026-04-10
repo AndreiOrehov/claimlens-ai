@@ -9,6 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
+const APP_VERSION = "0.9.1";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
@@ -2309,6 +2310,8 @@ GENERAL ACCURACY RULES:
         vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, mileage: vMileage } : null,
         property: type === "property" ? { type: pType, cause: pCause, area: pArea, sqft: pSqft, yearBuilt: pYearBuilt, address: pAddress } : null,
         createdAt: new Date().toISOString(),
+        aiModel: geminiTier === "pro" ? "Gemini 3.1 Pro" : "Gemini 2.5 Flash",
+        appVersion: APP_VERSION,
       };
 
       console.log("Claim built, calling onSubmit...");
@@ -2756,6 +2759,7 @@ function ReportView({ claim, onBack, isPro = false }) {
     let report = `CLAIMLENS AI — DAMAGE ASSESSMENT REPORT\n`;
     report += `${"=".repeat(50)}\n\n`;
     report += `Date: ${new Date(claim.createdAt).toLocaleString()}\n`;
+    report += `Build: v${APP_VERSION}\n`;
     report += `Type: ${claim.type === "auto" ? "Vehicle" : "Property"} Damage\n`;
     report += `Location: ${claim.location || "Not specified"}\n`;
     report += `Severity: ${a.severity?.toUpperCase()}\n`;
@@ -3034,7 +3038,8 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
     </div>
     <div class="meta">
       <strong>Report ID:</strong> ${claim.id}<br/>
-      <strong>Date:</strong> ${new Date(claim.createdAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}<br/>
+      <strong>Date:</strong> ${new Date(claim.createdAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} at ${new Date(claim.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}<br/>
+      <strong>Build:</strong> v${APP_VERSION}${claim.aiModel ? ` · ${claim.aiModel}` : ""}<br/>
       <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim && claim.vehicle.trim !== "Base" ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.engine ? ` · ${claim.vehicle.engine}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
     </div>
   </div>
