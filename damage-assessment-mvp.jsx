@@ -908,6 +908,7 @@ function NewClaimView({ onSubmit, initialType }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+  const [geminiTier, setGeminiTier] = useState("pro"); // "pro" = 3.1 Pro, "regular" = 2.5 Flash
   const fileRef = useRef(null);
 
   // Vehicle fields
@@ -1734,8 +1735,8 @@ GENERAL ACCURACY RULES:
       });
 
       const NUM_RUNS = 3;
-      const PRIMARY_MODEL = "gemini-2.5-flash";
-      const FALLBACK_1 = "gemini-2.5-flash-lite";
+      const PRIMARY_MODEL = geminiTier === "pro" ? "gemini-3.1-pro-preview" : "gemini-2.5-flash";
+      const FALLBACK_1 = geminiTier === "pro" ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
       const FALLBACK_2 = "gemini-3-flash-preview";
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -2595,6 +2596,30 @@ GENERAL ACCURACY RULES:
           color: palette.danger, fontSize: 13, display: "flex", alignItems: "center", gap: 6,
         }}>
           <Icons.AlertTriangle /> {error}
+        </div>
+      )}
+
+      {/* AI Model Tier Selector */}
+      {type === "auto" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 12, color: palette.textMuted, whiteSpace: "nowrap" }}>AI Model:</span>
+          <div style={{ display: "flex", flex: 1, background: palette.surfaceAlt, borderRadius: 8, padding: 2 }}>
+            {[
+              { key: "pro", label: "Pro", sub: "Gemini 3.1 Pro" },
+              { key: "regular", label: "Regular", sub: "Gemini 2.5 Flash" },
+            ].map(opt => (
+              <button key={opt.key} onClick={() => setGeminiTier(opt.key)} style={{
+                flex: 1, padding: "6px 8px", border: "none", borderRadius: 6, cursor: "pointer",
+                fontFamily: font, fontSize: 12, fontWeight: geminiTier === opt.key ? 600 : 400,
+                background: geminiTier === opt.key ? palette.accent : "transparent",
+                color: geminiTier === opt.key ? "#fff" : palette.textMuted,
+                transition: "all 0.2s",
+                boxShadow: geminiTier === opt.key ? "0 1px 4px rgba(0,0,0,0.2)" : "none",
+              }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
