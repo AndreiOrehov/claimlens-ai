@@ -1685,7 +1685,7 @@ GENERAL ACCURACY RULES:
         });
         if (p.caption) geminiParts.push({ text: `[Photo note: ${p.caption}]` });
       });
-      geminiParts.push({ text: systemPrompt + "\n\n" + userPrompt });
+      geminiParts.push({ text: userPrompt });
 
       // Strict JSON schema for auto claims — Gemini ONLY detects damage indicators, no severity/operation/costs
       // Enum constraints force Gemini to pick from closed vocabularies → trivial consensus matching
@@ -1734,6 +1734,7 @@ GENERAL ACCURACY RULES:
       } : null;
 
       const geminiRequestBody = JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
         contents: [{ parts: geminiParts }],
         generationConfig: {
           temperature: 0,
