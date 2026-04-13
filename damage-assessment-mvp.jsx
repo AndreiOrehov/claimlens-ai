@@ -1641,6 +1641,13 @@ SYMMETRIC DAMAGE CHECK (CRITICAL):
 - NEVER report a generic unsided "Headlamp" or "Fender" — ALWAYS specify LH or RH.
 - Symmetric damage is COMMON — do not assume only one side is affected.
 
+HEADLAMP & TAIL LAMP RULE (MANDATORY):
+- You MUST report EACH headlamp_assembly and tail_lamp_assembly as a SEPARATE item with _LH or _RH suffix.
+- Even if a lamp appears only slightly displaced, misaligned, or has a hairline crack — report it.
+- In a frontal collision, BOTH headlamps are almost always affected. Inspect each one individually and report any damage, no matter how minor.
+- In a rear collision, BOTH tail lamps are almost always affected. Inspect each one individually.
+- A lamp that is intact but displaced from its mounting position due to surrounding panel damage IS damaged — report it as misaligned.
+
 COMPONENT IDENTIFICATION RULES (CRITICAL):
 - FLAT/DEFLATED/DAMAGED TIRE: Report as "wheel_tire_LH" or "wheel_tire_RH" — NEVER as bumper, fender, or any other component.
 - MISSING DOOR GLASS: Report as "side_window_glass_LH" or "side_window_glass_RH" — NOT as "front_door_shell" or "rear_door_shell".
