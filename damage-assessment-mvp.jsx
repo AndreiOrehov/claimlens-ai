@@ -3,7 +3,7 @@ import { US_STATES, buildPricingContext, validateEstimates, getVehicleClass, fet
 import { VEHICLE_TRIMS } from "./vehicle-trims.js";
 import { VEHICLE_SPECS } from "./vehicle-specs.js";
 import { PARTS_CATALOG_PROMPT, ALL_PARTS } from "./parts-catalog.js";
-import { processDetection } from "./detection-engine.js";
+import { processDetection, INDICATOR_WEIGHTS } from "./detection-engine.js";
 import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassMultiplier } from "./labor-times.js";
 
 // ============================================================
@@ -1688,6 +1688,8 @@ GENERAL ACCURACY RULES:
       geminiParts.push({ text: systemPrompt + "\n\n" + userPrompt });
 
       // Strict JSON schema for auto claims — Gemini ONLY detects damage indicators, no severity/operation/costs
+      // Enum constraints force Gemini to pick from closed vocabularies → trivial consensus matching
+      const allIndicators = Object.keys(INDICATOR_WEIGHTS);
       const autoResponseSchema = type === "auto" ? {
         type: "OBJECT",
         properties: {
@@ -1699,10 +1701,10 @@ GENERAL ACCURACY RULES:
             items: {
               type: "OBJECT",
               properties: {
-                component: { type: "STRING" },
+                component: { type: "STRING", enum: ALL_PARTS },
                 damage_indicators: {
                   type: "ARRAY",
-                  items: { type: "STRING" },
+                  items: { type: "STRING", enum: allIndicators },
                 },
                 description: { type: "STRING" },
               },
@@ -1714,22 +1716,27 @@ GENERAL ACCURACY RULES:
             items: {
               type: "OBJECT",
               properties: {
-                component: { type: "STRING" },
+                component: { type: "STRING", enum: ALL_PARTS },
                 reason: { type: "STRING" },
               },
             },
+          },
+          areas_not_visible: {
+            type: "ARRAY",
+            description: "Parts/zones NOT shown in any photo — helps distinguish 'not damaged' from 'not visible'",
+            items: { type: "STRING" },
           },
           recommendations: { type: "ARRAY", items: { type: "STRING" } },
           flags: { type: "ARRAY", items: { type: "STRING" } },
           repair_vs_replace: { type: "STRING", enum: ["repair", "replace", "needs_inspection"] },
         },
-        required: ["summary", "damage_type", "confidence", "damages", "recommendations", "flags", "repair_vs_replace"],
+        required: ["summary", "damage_type", "confidence", "damages", "areas_not_visible", "recommendations", "flags", "repair_vs_replace"],
       } : null;
 
       const geminiRequestBody = JSON.stringify({
         contents: [{ parts: geminiParts }],
         generationConfig: {
-          temperature: 0,
+          temperature: 0.2,
           responseMimeType: "application/json",
           ...(autoResponseSchema ? { responseSchema: autoResponseSchema } : {}),
         },
@@ -2220,6 +2227,16 @@ GENERAL ACCURACY RULES:
             : "needs_inspection",
           _runs: assessments.length,
           _consensus: `${mergedDamages.length} components (detection engine)`,
+          // Aggregate areas_not_visible — keep only zones reported by ALL runs (intersection)
+          areas_not_visible: isAutoType
+            ? assessments
+                .map(a => new Set(a.areas_not_visible || []))
+                .reduce((acc, s) => acc ? new Set([...acc].filter(x => s.has(x))) : s, null)
+                ? [...assessments
+                    .map(a => new Set(a.areas_not_visible || []))
+                    .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))))]
+                : []
+            : [],
         };
 
         if (isMitchell) {
@@ -2830,6 +2847,11 @@ function ReportView({ claim, onBack, isPro = false }) {
       report += `\nADJUSTER INSPECTION CHECKLIST\n${"-".repeat(30)}\n`;
       a.adjuster_checklist.forEach((item, i) => { report += `☐ ${i + 1}. ${item}\n`; });
     }
+    if (claim.type === "auto" && a.areas_not_visible?.length) {
+      report += `\nAREAS NOT VISIBLE IN PHOTOS\n${"-".repeat(30)}\n`;
+      report += `The following areas were not visible in the submitted photos and could not be assessed:\n`;
+      a.areas_not_visible.forEach((area, i) => { report += `• ${area.replace(/_/g, " ")}\n`; });
+    }
     if (claim.type === "auto" && a.damages?.some(d => d.part_info?.type && d.part_info.type !== "OEM")) {
       report += `\nALTERNATE PARTS NOTICE\n${"-".repeat(30)}\n${ALTERNATE_PARTS_DISCLAIMER}\n`;
     }
@@ -3175,6 +3197,17 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
           </div>
           <span style="font-size:10px;color:#374151;line-height:1.6;">${item}</span>
         </div>
+      `).join("")}
+    </div>
+  </div>` : ""}
+
+  ${claim.type === "auto" && (a.areas_not_visible||[]).length > 0 ? `
+  <div class="section">
+    <div class="section-title"><span class="dot" style="background:#94A3B8;"></span> Areas Not Visible in Photos</div>
+    <p style="font-size:10px;color:#64748B;margin:0 0 8px 0;">The following areas were not visible in the submitted photos and could not be assessed:</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      ${a.areas_not_visible.map(area => `
+        <span style="font-size:9.5px;color:#475569;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:4px;padding:4px 8px;">${area.replace(/_/g, " ")}</span>
       `).join("")}
     </div>
   </div>` : ""}
@@ -3927,6 +3960,37 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
                 </div>
                 <span style={{ fontSize: 13, color: palette.textMuted, lineHeight: 1.5 }}>{item}</span>
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Areas Not Visible */}
+      {claim.type === "auto" && a.areas_not_visible?.length > 0 && (
+        <div style={{
+          padding: 20, borderRadius: 12, border: `1px solid ${palette.border}`,
+          background: palette.surface, marginBottom: 16,
+        }}>
+          <h3 style={{ fontSize: isMobile ? 13 : 15, fontWeight: 700, margin: 0, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: palette.textDim }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </span>
+            Areas Not Visible in Photos
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 12, background: "rgba(148,163,184,0.1)", color: palette.textDim }}>
+              {a.areas_not_visible.length} zones
+            </span>
+          </h3>
+          <p style={{ fontSize: 12, color: palette.textDim, margin: "0 0 10px 0" }}>
+            These areas were not visible in the submitted photos and could not be assessed:
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {a.areas_not_visible.map((area, i) => (
+              <span key={i} style={{
+                fontSize: 12, color: palette.textMuted, background: palette.surfaceAlt,
+                border: `1px solid ${palette.border}`, borderRadius: 6, padding: "5px 10px",
+              }}>
+                {area.replace(/_/g, " ")}
+              </span>
             ))}
           </div>
         </div>
