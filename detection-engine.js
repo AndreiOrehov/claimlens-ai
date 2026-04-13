@@ -683,6 +683,50 @@ export function processDetection(geminiRuns, vehicleInfo, photos) {
     }
   }
 
+  // 2b. Split unsided symmetric components into LH + RH
+  // Gemini sometimes returns generic "headlamp_assembly" instead of "headlamp_assembly_LH" + "headlamp_assembly_RH"
+  // If a sided component has no _LH/_RH suffix, check if multiple runs reported it — split into both sides
+  const SIDED_COMPONENTS = [
+    "headlamp_assembly", "headlight_assembly", "headlamp_housing",
+    "tail_lamp_assembly", "tail_light_assembly",
+    "fog_lamp", "fog_light", "daytime_running_lamp",
+    "turn_signal_lamp", "side_marker_lamp",
+    "front_fender", "rear_fender",
+    "door_mirror", "outside_rearview_mirror", "side_view_mirror",
+  ];
+  const toSplit = [];
+  for (let i = mergedComponents.length - 1; i >= 0; i--) {
+    const mc = mergedComponents[i];
+    const comp = (mc.component || "").toLowerCase();
+    // Already has side suffix — skip
+    if (/_(lh|rh)$/i.test(comp)) continue;
+    // Check if this is a sided component
+    const isSided = SIDED_COMPONENTS.some(sc => comp === sc || comp.includes(sc));
+    if (!isSided) continue;
+    // Check description for side hints
+    const desc = (mc.description || "").toLowerCase();
+    const mentionsBoth = (desc.includes("left") && desc.includes("right")) ||
+                         desc.includes("both") || /\bboth\b/.test(desc);
+    const mentionsLeft = /\bleft\b/.test(desc) || /\blh\b/.test(desc);
+    const mentionsRight = /\bright\b/.test(desc) || /\brh\b/.test(desc);
+    if (mentionsBoth || (!mentionsLeft && !mentionsRight)) {
+      // No side specified or both mentioned — split into LH + RH
+      console.log(`[detection] Splitting unsided ${mc.component} → ${mc.component}_LH + ${mc.component}_RH`);
+      mergedComponents.splice(i, 1);
+      toSplit.push(
+        { ...mc, component: mc.component + "_LH" },
+        { ...mc, component: mc.component + "_RH" },
+      );
+    } else if (mentionsLeft) {
+      mc.component = mc.component + "_LH";
+      console.log(`[detection] Adding side suffix: ${comp} → ${mc.component}`);
+    } else if (mentionsRight) {
+      mc.component = mc.component + "_RH";
+      console.log(`[detection] Adding side suffix: ${comp} → ${mc.component}`);
+    }
+  }
+  mergedComponents.push(...toSplit);
+
   // 3. Derive severity, operation, part_type for each component
   const damages = mergedComponents.map(mc => ({
     component: mc.component,

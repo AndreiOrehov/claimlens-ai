@@ -2,7 +2,7 @@
 export const PARTS_CATALOG = {
   front_end: [
     "front_bumper", "front_bumper_cover", "front_bumper_reinforcement", "bumper_absorber",
-    "bumper_bracket", "bumper_mount", "bumper_valance", "lower_valance_panel", "air_dam",
+    "bumper_bracket", "bumper_mount", "bumper_valance", "front_bumper_molding", "lower_valance_panel", "air_dam",
     "radiator_support", "core_support", "upper_tie_bar", "front_panel", "front_apron",
     "hood", "hood_hinge", "hood_latch", "hood_lock_support", "hood_latch_support",
     "hood_striker", "hood_insulator", "hood_pad", "hood_molding", "hood_trim",
@@ -46,7 +46,7 @@ export const PARTS_CATALOG = {
   ],
   rear_end: [
     "rear_bumper", "rear_bumper_cover", "rear_bumper_reinforcement", "rear_bumper_absorber",
-    "rear_bumper_bracket", "rear_bumper_stay", "rear_valance_panel", "lower_rear_valance",
+    "rear_bumper_bracket", "rear_bumper_stay", "rear_bumper_molding", "rear_valance_panel", "lower_rear_valance",
     "rear_body_panel", "tail_panel", "rear_crossmember", "rear_body_crossmember",
     "trunk_lid", "trunk_lid_panel", "deck_lid",
     "tailgate", "liftgate", "liftgate_glass", "tailgate_glass",
