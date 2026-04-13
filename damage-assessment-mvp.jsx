@@ -1736,7 +1736,7 @@ GENERAL ACCURACY RULES:
       const geminiRequestBody = JSON.stringify({
         contents: [{ parts: geminiParts }],
         generationConfig: {
-          temperature: 0.2,
+          temperature: 0,
           responseMimeType: "application/json",
           ...(autoResponseSchema ? { responseSchema: autoResponseSchema } : {}),
         },
@@ -1752,10 +1752,17 @@ GENERAL ACCURACY RULES:
       const geminiApiUrl = (model) =>
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
 
+      const RUN_TIMEOUT_MS = 90_000; // 90s per individual run — prevents infinite hangs
+      const fetchWithTimeout = (url, opts, timeoutMs) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
+      };
+
       const fetchGeminiRun = async (runIdx, model) => {
-        const r = await fetch(geminiApiUrl(model), {
+        const r = await fetchWithTimeout(geminiApiUrl(model), {
           method: "POST", headers: { "Content-Type": "application/json" }, body: geminiRequestBody,
-        });
+        }, RUN_TIMEOUT_MS);
         const data = await r.json();
         if (data.error) throw new Error(data.error.message);
         const txt = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
@@ -1787,7 +1794,22 @@ GENERAL ACCURACY RULES:
           })
       );
 
-      const results = await Promise.all(geminiPromises);
+      // Race: proceed as soon as 2 valid results arrive, don't wait for a straggler
+      const raceForMinResults = (promises, minRequired) => new Promise((resolve, reject) => {
+        const results = new Array(promises.length).fill(undefined);
+        let settled = 0, valid = 0;
+        promises.forEach((p, i) => {
+          p.then(r => { results[i] = r; if (r) valid++; })
+           .catch(() => { results[i] = null; })
+           .finally(() => {
+             settled++;
+             if (valid >= minRequired) resolve(results.map(r => r ?? null));
+             else if (settled === promises.length) resolve(results.map(r => r ?? null));
+           });
+        });
+      });
+
+      const results = await raceForMinResults(geminiPromises, 2);
       clearInterval(progressInterval);
       const validResults = results.filter(Boolean);
       console.log(`Valid results: ${validResults.length}/${NUM_RUNS}`);
