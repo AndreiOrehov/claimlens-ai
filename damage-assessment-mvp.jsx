@@ -1440,11 +1440,15 @@ Example: {"front_bumper":{"o":[800,1200],"a":[350,550]}}`;
       const propertyContext = type === "property" ? `Property: ${PROPERTY_TYPES.find(p=>p.value===pType)?.label || pType}${pCause ? `, Cause: ${DAMAGE_CAUSES.find(c=>c.value===pCause)?.label || pCause}` : ""}${pArea ? `, Area: ${AREAS_AFFECTED.find(a=>a.value===pArea)?.label || pArea}` : ""}${pSqft ? `, ~${pSqft} sq ft` : ""}${pYearBuilt ? `, Built: ${pYearBuilt}` : ""}` : "";
       const objectContext = vehicleContext || propertyContext;
 
-      const systemPrompt = `You are ClaimPilot AI, a professional insurance damage assessment assistant.
-Analyze the provided photos of ${type === "auto" ? "vehicle" : "property"} damage and generate a structured assessment.
+      const systemPrompt = `${type === "auto"
+        ? `You are ClaimPilot AI, a vehicle collision damage detector for insurance pre-inspection estimates.
+Your ONLY job is to DETECT and DESCRIBE visible damage on the vehicle. You do NOT assess severity, costs, or repair operations — a deterministic rules engine handles all of that.
+Analyze the provided photos and return a structured JSON list of damaged components with their visual damage indicators.`
+        : `You are ClaimPilot AI, a property damage assessment assistant for insurance claims.
+Analyze the provided photos of property damage and generate a structured assessment with line-item cost estimates.`}
 
 PHOTO ANALYSIS RULES — FOLLOW STRICTLY:
-
+${type === "auto" ? `
 GLASS & WINDOWS — analyze each glass panel individually:
 - INTACT glass: surface is smooth and continuous, may have water droplets, rain, dust, or reflections. Water creates round/streaky patterns that follow gravity. Reflections show surrounding environment. These are NOT damage.
 - CRACKED glass: has sharp linear fracture lines radiating from an impact point (spider web pattern), or long single cracks. Fracture lines are THIN, SHARP, and ANGULAR — they do NOT follow gravity like water.
@@ -1457,12 +1461,14 @@ BODY PANELS & PARTS:
 - Look for: dents (changes in surface curvature), scratches (paint removed), creases (sharp bends), tears (metal split open), missing parts (not present at all).
 - Distinguish actual deformation from: dirt, mud, shadows, lighting angles, wet surfaces.
 - If a part is MISSING (bumper gone, light assembly gone, trim piece gone), describe it as "missing" with severity "severe".
-- If a part appears intact but dirty/wet, it is NOT damaged.
+- If a part appears intact but dirty/wet, it is NOT damaged.` : `
+- Distinguish actual damage from: normal wear, aging, dirt, lighting effects.
+- If damage is NOT VISIBLE in any photo, do NOT include it.`}
 
 CROSS-PHOTO ANALYSIS:
 - Scan ALL provided photos. A part may be visible as damaged or missing in one photo but not another.
 - If a part is NOT VISIBLE in any photo, do NOT include it.
-- Pay special attention to: tail lights, headlights, trim pieces, mirrors, antennas — these small parts are easy to miss.
+${type === "auto" ? `- Pay special attention to: tail lights, headlights, trim pieces, mirrors, antennas — these small parts are easy to miss.` : ""}
 ${type === "auto" ? `
 MANDATORY INSPECTION CHECKLIST — you MUST check EVERY zone below and report damage if found:
 EXTERIOR: front bumper, rear bumper, hood, trunk/tailgate, roof, left front fender, right front fender, left rear quarter panel, right rear quarter panel, left front door, left rear door, right front door, right rear door.
@@ -1602,7 +1608,7 @@ IMPORTANT: Do NOT include any dollar amounts, labor hours, labor rates, paint ho
 Do NOT assess severity levels, operation types (R&R, Repair, etc.), or part types (OEM, AFT, etc.).
 Your ONLY job is to DETECT damage and describe WHAT INDICATORS you see. ALL derivation is done by our rules engine.`}
 
-COMPONENT & INDICATOR NAMING (enforced by response schema):
+${type === "auto" ? `COMPONENT & INDICATOR NAMING (enforced by response schema):
 - Component names and damage indicators are constrained by the JSON response schema enum — use ONLY values from those enums.
 - For sided parts, append "_LH" or "_RH" (e.g. "headlamp_assembly_LH", "front_fender_RH").
 - NEVER use generic names like "bumper" — use "front_bumper_cover" or "rear_bumper_cover".
@@ -1610,15 +1616,12 @@ COMPONENT & INDICATOR NAMING (enforced by response schema):
 - Be SPECIFIC: "buckled" = panel lost shape. "dented" = pushed inward but shape intact. "scratched" = surface marks only.
 - When in doubt between two indicators, include BOTH.
 
-DAMAGE DETECTION RULES (for auto claims):
-YOU ARE A DAMAGE DETECTOR ONLY. You detect WHAT is damaged and describe WHAT YOU SEE.
-Do NOT assess severity, operation type, part type, or any costs. ALL of that is calculated by our rules engine.
-
+DAMAGE DETECTION RULES:
 1. Each damage item = ONE component with its indicators. Report each damaged component ONCE with ALL applicable indicators.
 2. "damages" array: ONLY damage confirmed by visual evidence. Describe SPECIFIC visual evidence in "description".
 3. "potential_damages": parts NOT visible but likely damaged based on impact direction and energy transfer.
 
-SYSTEMATIC ZONE-BY-ZONE SCAN — You MUST inspect EVERY zone in order. For each zone, report any damage found or skip if no damage is visible. Do NOT stop after finding the obvious damage — check ALL zones:
+SYSTEMATIC ZONE-BY-ZONE SCAN — You MUST inspect EVERY zone in order. Do NOT stop after finding the obvious damage — check ALL zones:
 1. FRONT-CENTER: bumper cover, grille, hood, windshield, emblem
 2. FRONT-LEFT: left headlamp, left fog lamp, left fender, left mirror, left front wheel/tire
 3. FRONT-RIGHT: right headlamp, right fog lamp, right fender, right mirror, right front wheel/tire
@@ -1638,19 +1641,21 @@ SYMMETRIC DAMAGE CHECK (CRITICAL):
 - NEVER report a generic unsided "Headlamp" or "Fender" — ALWAYS specify LH or RH.
 - Symmetric damage is COMMON — do not assume only one side is affected.
 
-COMPONENT IDENTIFICATION RULES (CRITICAL — read carefully):
-- FLAT/DEFLATED/DAMAGED TIRE: Report as "wheel_tire_LH" or "wheel_tire_RH" — NEVER as bumper, fender, or any other component. A tire is a TIRE, not a body panel.
-- MISSING DOOR GLASS: Report as "side_window_glass_LH" or "side_window_glass_RH" — NOT as "front_door_shell" or "rear_door_shell". Missing glass does NOT mean the door needs replacement.
-- MISSING REAR QUARTER GLASS: Report as "quarter_glass_LH" or "quarter_glass_RH".
+COMPONENT IDENTIFICATION RULES (CRITICAL):
+- FLAT/DEFLATED/DAMAGED TIRE: Report as "wheel_tire_LH" or "wheel_tire_RH" — NEVER as bumper, fender, or any other component.
+- MISSING DOOR GLASS: Report as "side_window_glass_LH" or "side_window_glass_RH" — NOT as "front_door_shell" or "rear_door_shell".
+- MISSING QUARTER GLASS: Report as "quarter_glass_LH" or "quarter_glass_RH".
 - MISSING WINDSHIELD: Report as "windshield".
-- A component with TAPE covering an opening = the component behind the tape is MISSING (glass, panel, etc.), not the tape itself.
-- Report the ACTUAL damaged/missing component, not adjacent panels. If a tire is flat, report the tire — not the bumper or fender near it.
+- A component with TAPE covering an opening = the component behind the tape is MISSING.
+- Report the ACTUAL damaged/missing component, not adjacent panels.` : `GENERAL RULES:
+- Each damage item should be a specific LINE ITEM (like Xactimate), not a vague area.
+- For example: instead of "bathroom damage", list: "drywall ceiling repair", "tile floor replacement", "vanity replacement".`}
 
-GENERAL ACCURACY RULES:
+ACCURACY RULES:
 1. If you cannot confirm whether something is damage or environmental (water/dirt/shadow), add to "flags" — do NOT include it in "damages".
 2. Be precise about location: left/right, front/rear.
 3. Keep recommendations to 3-5. Keep flags to 3-5.
-4. Do NOT include any dollar amounts, hours, rates, or cost calculations anywhere in your response.`;
+${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost calculations anywhere in your response.` : ""}`;
 
       const userPrompt = `Assess the damage in these ${photos.length} photo(s).${objectContext ? `\n\n${objectContext}` : ""}${description ? `\n\nAdditional context from the claimant: "${description}"` : ""}${location ? `\nLocation: ${location}` : ""}`;
 
