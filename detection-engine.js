@@ -326,35 +326,8 @@ export function derivePartType(component) {
 // ============================================================
 
 /**
- * Normalize component name for grouping: snake_case, alphabetically sorted words.
- */
-function normalizeComponent(name) {
-  const words = name.toLowerCase().replace(/_/g, " ").replace(/[^a-z0-9\s]/g, "").trim().split(/\s+/).sort();
-  return words.join("_");
-}
-
-/** Extract side (L/R/null) from component key */
-function getSide(key) {
-  const words = key.split("_");
-  if (words.includes("lh") || words.includes("left")) return "L";
-  if (words.includes("rh") || words.includes("right")) return "R";
-  return null;
-}
-
-/** Check if two normalized keys refer to the same component */
-function isSimilar(a, b) {
-  if (a === b) return true;
-  const sideA = getSide(a), sideB = getSide(b);
-  if (sideA && sideB && sideA !== sideB) return false;
-  if ((sideA && !sideB) || (!sideA && sideB)) return false;
-  if (a.includes(b) || b.includes(a)) return true;
-  const aw = a.split("_"), bw = b.split("_");
-  const shared = aw.filter(w => bw.includes(w)).length;
-  return shared / Math.max(aw.length, bw.length) >= 0.7;
-}
-
-/**
  * Merge 3 Gemini runs into consensus damages.
+ * - Exact component key matching (enum constraints in responseSchema guarantee consistent names)
  * - Component must appear in >= minVotes runs
  * - ALL indicators require 2+ runs to confirm (no single-run exceptions)
  * - High-cost components (quarter_panel, rocker_panel) require 3/3 runs
@@ -374,18 +347,13 @@ export function mergeRuns(runs, minVotes = 2) {
     }));
   }
 
-  // Group damages by normalized component across runs
+  // Group damages by exact component name — enum schema guarantees consistent keys
   const damageMap = {};
   runs.forEach((run, runIdx) => {
     (run.damages || []).forEach(d => {
-      const norm = normalizeComponent(d.component || "");
-      let canonKey = null;
-      for (const existing of Object.keys(damageMap)) {
-        if (isSimilar(norm, existing)) { canonKey = existing; break; }
-      }
-      if (!canonKey) canonKey = norm;
-      if (!damageMap[canonKey]) damageMap[canonKey] = { component: d.component, entries: [] };
-      damageMap[canonKey].entries.push({ ...d, runIdx });
+      const key = (d.component || "").toLowerCase();
+      if (!damageMap[key]) damageMap[key] = { component: d.component, entries: [] };
+      damageMap[key].entries.push({ ...d, runIdx });
     });
   });
 
