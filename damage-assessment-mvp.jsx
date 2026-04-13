@@ -1036,10 +1036,10 @@ function NewClaimView({ onSubmit, initialType }) {
         };
 
         video.onseeked = () => {
-          canvas.width = Math.min(video.videoWidth, 1280);
+          canvas.width = Math.min(video.videoWidth, 1920);
           canvas.height = Math.round(canvas.width * (video.videoHeight / video.videoWidth));
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.90);
           frames.push({
             name: `${file.name}_frame${idx + 1}.jpg`,
             data: dataUrl,
@@ -1077,13 +1077,13 @@ function NewClaimView({ onSubmit, initialType }) {
           return total.slice(0, 10);
         });
       } else {
-        // Regular image — resize to max 2048px for optimal Gemini performance
+        // Regular image — resize to max 3200px to preserve fine damage details (chips, cracks, scuffs)
         if (photos.length >= 10) { setError("Maximum 10 photos per claim"); return; }
         const reader = new FileReader();
         reader.onload = (ev) => {
           const img = new Image();
           img.onload = () => {
-            const MAX_DIM = 2048;
+            const MAX_DIM = 3200;
             let { width, height } = img;
             if (width > MAX_DIM || height > MAX_DIM) {
               const scale = MAX_DIM / Math.max(width, height);
@@ -1095,7 +1095,7 @@ function NewClaimView({ onSubmit, initialType }) {
             canvas.height = height;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
-            const resized = canvas.toDataURL("image/jpeg", 0.92);
+            const resized = canvas.toDataURL("image/jpeg", 0.95);
             setPhotos((prev) => {
               if (prev.length >= 10) return prev;
               return [...prev, { name: file.name, data: resized, size: file.size, caption: "" }];
