@@ -325,8 +325,54 @@ export function derivePartType(component) {
 // MERGE RUNS — Consensus with weighted indicator union
 // ============================================================
 
+// --- Sided components that must be split into _LH + _RH before consensus ---
+const SIDED_COMPONENTS = [
+  "headlamp_assembly", "headlight_assembly", "headlamp_housing",
+  "tail_lamp_assembly", "tail_light_assembly",
+  "fog_lamp", "fog_light", "daytime_running_lamp",
+  "turn_signal_lamp", "side_marker_lamp",
+  "front_fender", "rear_fender",
+  "door_mirror", "outside_rearview_mirror", "side_view_mirror",
+];
+
+/**
+ * Pre-merge normalization: split unsided symmetric components into _LH + _RH.
+ * This ensures "headlamp_assembly" and "headlamp_assembly_LH" map to the same
+ * consensus key across runs, preventing false filtering.
+ */
+function normalizeSidedComponents(damages) {
+  const result = [];
+  for (const d of damages) {
+    const comp = (d.component || "").toLowerCase();
+    if (/_(lh|rh)$/i.test(comp)) {
+      result.push(d); // Already sided — keep as-is
+      continue;
+    }
+    const isSided = SIDED_COMPONENTS.some(sc => comp === sc || comp.includes(sc));
+    if (!isSided) {
+      result.push(d);
+      continue;
+    }
+    // Check description for side hints
+    const desc = (d.description || "").toLowerCase();
+    const mentionsLeft = /\bleft\b/.test(desc) || /\blh\b/.test(desc);
+    const mentionsRight = /\bright\b/.test(desc) || /\brh\b/.test(desc);
+    if (mentionsLeft && !mentionsRight) {
+      result.push({ ...d, component: d.component + "_LH" });
+    } else if (mentionsRight && !mentionsLeft) {
+      result.push({ ...d, component: d.component + "_RH" });
+    } else {
+      // Both or neither mentioned — split into LH + RH
+      result.push({ ...d, component: d.component + "_LH" });
+      result.push({ ...d, component: d.component + "_RH" });
+    }
+  }
+  return result;
+}
+
 /**
  * Merge 3 Gemini runs into consensus damages.
+ * - Pre-normalizes sided components so "headlamp_assembly" and "headlamp_assembly_LH" merge correctly
  * - Exact component key matching (enum constraints in responseSchema guarantee consistent names)
  * - Component must appear in >= minVotes runs
  * - ALL indicators require 2+ runs to confirm (no single-run exceptions)
@@ -337,8 +383,9 @@ export function derivePartType(component) {
 export function mergeRuns(runs, minVotes = 2) {
   if (!runs || runs.length === 0) return [];
   if (runs.length === 1) {
-    // Single run: normalize indicators, pass through
-    return (runs[0].damages || []).map(d => ({
+    // Single run: normalize sided + indicators, pass through
+    const normalized = normalizeSidedComponents(runs[0].damages || []);
+    return normalized.map(d => ({
       component: d.component,
       damage_indicators: (d.damage_indicators || []).map(normalizeIndicator).filter(Boolean),
       description: d.description || "",
@@ -347,9 +394,15 @@ export function mergeRuns(runs, minVotes = 2) {
     }));
   }
 
+  // Pre-normalize: split unsided components in each run before grouping
+  const normalizedRuns = runs.map(run => ({
+    ...run,
+    damages: normalizeSidedComponents(run.damages || []),
+  }));
+
   // Group damages by exact component name — enum schema guarantees consistent keys
   const damageMap = {};
-  runs.forEach((run, runIdx) => {
+  normalizedRuns.forEach((run, runIdx) => {
     (run.damages || []).forEach(d => {
       const key = (d.component || "").toLowerCase();
       if (!damageMap[key]) damageMap[key] = { component: d.component, entries: [] };
@@ -683,49 +736,7 @@ export function processDetection(geminiRuns, vehicleInfo, photos) {
     }
   }
 
-  // 2b. Split unsided symmetric components into LH + RH
-  // Gemini sometimes returns generic "headlamp_assembly" instead of "headlamp_assembly_LH" + "headlamp_assembly_RH"
-  // If a sided component has no _LH/_RH suffix, check if multiple runs reported it — split into both sides
-  const SIDED_COMPONENTS = [
-    "headlamp_assembly", "headlight_assembly", "headlamp_housing",
-    "tail_lamp_assembly", "tail_light_assembly",
-    "fog_lamp", "fog_light", "daytime_running_lamp",
-    "turn_signal_lamp", "side_marker_lamp",
-    "front_fender", "rear_fender",
-    "door_mirror", "outside_rearview_mirror", "side_view_mirror",
-  ];
-  const toSplit = [];
-  for (let i = mergedComponents.length - 1; i >= 0; i--) {
-    const mc = mergedComponents[i];
-    const comp = (mc.component || "").toLowerCase();
-    // Already has side suffix — skip
-    if (/_(lh|rh)$/i.test(comp)) continue;
-    // Check if this is a sided component
-    const isSided = SIDED_COMPONENTS.some(sc => comp === sc || comp.includes(sc));
-    if (!isSided) continue;
-    // Check description for side hints
-    const desc = (mc.description || "").toLowerCase();
-    const mentionsBoth = (desc.includes("left") && desc.includes("right")) ||
-                         desc.includes("both") || /\bboth\b/.test(desc);
-    const mentionsLeft = /\bleft\b/.test(desc) || /\blh\b/.test(desc);
-    const mentionsRight = /\bright\b/.test(desc) || /\brh\b/.test(desc);
-    if (mentionsBoth || (!mentionsLeft && !mentionsRight)) {
-      // No side specified or both mentioned — split into LH + RH
-      console.log(`[detection] Splitting unsided ${mc.component} → ${mc.component}_LH + ${mc.component}_RH`);
-      mergedComponents.splice(i, 1);
-      toSplit.push(
-        { ...mc, component: mc.component + "_LH" },
-        { ...mc, component: mc.component + "_RH" },
-      );
-    } else if (mentionsLeft) {
-      mc.component = mc.component + "_LH";
-      console.log(`[detection] Adding side suffix: ${comp} → ${mc.component}`);
-    } else if (mentionsRight) {
-      mc.component = mc.component + "_RH";
-      console.log(`[detection] Adding side suffix: ${comp} → ${mc.component}`);
-    }
-  }
-  mergedComponents.push(...toSplit);
+  // 2b. Sided split is now handled in pre-merge normalization (normalizeSidedComponents)
 
   // 3. Derive severity, operation, part_type for each component
   const damages = mergedComponents.map(mc => ({
