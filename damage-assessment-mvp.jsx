@@ -1602,34 +1602,12 @@ IMPORTANT: Do NOT include any dollar amounts, labor hours, labor rates, paint ho
 Do NOT assess severity levels, operation types (R&R, Repair, etc.), or part types (OEM, AFT, etc.).
 Your ONLY job is to DETECT damage and describe WHAT INDICATORS you see. ALL derivation is done by our rules engine.`}
 
-CLOSED PARTS VOCABULARY (MANDATORY):
-You MUST use ONLY component names from the list below. This is a CLOSED vocabulary — do NOT invent, paraphrase, or abbreviate names.
-Rules:
-- Use the EXACT catalog name in snake_case (e.g. "front_bumper_cover", NOT "Front Bumper Cover" or "Bumper")
-- For sided parts, append "_LH" or "_RH" (e.g. "headlamp_assembly_LH", "front_fender_RH")
-- If a damaged part is not in this list, use the CLOSEST match from the list
-- NEVER use free-form names like "Grille Assembly" — use "grille_assembly"
-- NEVER use generic names like "bumper" — use "front_bumper_cover" or "rear_bumper_cover"
-
-${PARTS_CATALOG_PROMPT}
-
-CLOSED DAMAGE INDICATOR VOCABULARY (MANDATORY):
-For each damaged component, you MUST provide "damage_indicators" — an array of strings from this CLOSED vocabulary ONLY.
-Pick ALL indicators that apply to the component. Be thorough — do not skip indicators you can see.
-
-DEFORMATION (structure lost, part destroyed):
-  crushed, buckled, collapsed, torn, shattered, severed, kinked, pushed_in
-
-DAMAGE (part compromised but retains shape):
-  cracked, dented, bent, creased, misaligned, punctured, gouged, broken
-
-COSMETIC (surface damage only):
-  scratched, scuffed, chipped, faded, peeling, discolored, rubbed
-
-Rules:
-- Use ONLY indicators from this list. Do NOT invent indicators.
+COMPONENT & INDICATOR NAMING (enforced by response schema):
+- Component names and damage indicators are constrained by the JSON response schema enum — use ONLY values from those enums.
+- For sided parts, append "_LH" or "_RH" (e.g. "headlamp_assembly_LH", "front_fender_RH").
+- NEVER use generic names like "bumper" — use "front_bumper_cover" or "rear_bumper_cover".
 - Each damage item MUST have at least one indicator.
-- Be SPECIFIC: "buckled" means the panel lost its original shape. "dented" means pushed inward but shape mostly intact. "scratched" means surface marks only.
+- Be SPECIFIC: "buckled" = panel lost shape. "dented" = pushed inward but shape intact. "scratched" = surface marks only.
 - When in doubt between two indicators, include BOTH.
 
 DAMAGE DETECTION RULES (for auto claims):
@@ -1716,7 +1694,7 @@ GENERAL ACCURACY RULES:
             items: {
               type: "OBJECT",
               properties: {
-                component: { type: "STRING", enum: ALL_PARTS },
+                component: { type: "STRING" },
                 reason: { type: "STRING" },
               },
             },
