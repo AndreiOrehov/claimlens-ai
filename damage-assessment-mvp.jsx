@@ -1727,9 +1727,9 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
       });
 
       const NUM_RUNS = 3;
-      const PRIMARY_MODEL = geminiTier === "pro" ? "gemini-3.1-pro-preview" : "gemini-2.5-flash";
-      const FALLBACK_1 = geminiTier === "pro" ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
-      const FALLBACK_2 = "gemini-3-flash-preview";
+      const PRIMARY_MODEL = geminiTier === "pro" ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview";
+      const FALLBACK_1 = geminiTier === "pro" ? "gemini-3-flash-preview" : "gemini-2.5-flash";
+      const FALLBACK_2 = "gemini-2.5-flash-lite";
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
       // --- Gemini API ---
@@ -2314,7 +2314,7 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
         vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, mileage: vMileage } : null,
         property: type === "property" ? { type: pType, cause: pCause, area: pArea, sqft: pSqft, yearBuilt: pYearBuilt, address: pAddress } : null,
         createdAt: new Date().toISOString(),
-        aiModel: geminiTier === "pro" ? "Gemini 3.1 Pro" : "Gemini 2.5 Flash",
+        aiModel: geminiTier === "pro" ? "Gemini 3.1 Pro" : "Gemini 3 Flash",
         appVersion: APP_VERSION,
       };
 
@@ -2613,7 +2613,7 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
           <div style={{ display: "flex", flex: 1, background: palette.surfaceAlt, borderRadius: 8, padding: 2 }}>
             {[
               { key: "pro", label: "Pro", sub: "Gemini 3.1 Pro" },
-              { key: "regular", label: "Regular", sub: "Gemini 2.5 Flash" },
+              { key: "regular", label: "Regular", sub: "Gemini 3 Flash" },
             ].map(opt => (
               <button key={opt.key} onClick={() => setGeminiTier(opt.key)} style={{
                 flex: 1, padding: "6px 8px", border: "none", borderRadius: 6, cursor: "pointer",
