@@ -9,7 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
-const APP_VERSION = "0.9.7";
+const APP_VERSION = "0.9.8";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
@@ -909,7 +909,7 @@ function NewClaimView({ onSubmit, initialType }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
-  const [geminiTier, setGeminiTier] = useState("pro"); // "pro" = 3.1 Pro, "regular" = 2.5 Flash
+  // AI model is fixed: gemini-3-flash-preview → gemini-2.5-flash fallback
   const fileRef = useRef(null);
 
   // Vehicle fields
@@ -1740,9 +1740,9 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
       });
 
       const NUM_RUNS = 3;
-      const PRIMARY_MODEL = geminiTier === "pro" ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview";
-      const FALLBACK_1 = geminiTier === "pro" ? "gemini-3-flash-preview" : "gemini-2.5-flash";
-      const FALLBACK_2 = "gemini-2.5-flash-lite";
+      const PRIMARY_MODEL = "gemini-3-flash-preview";
+      const FALLBACK_1 = "gemini-2.5-flash";
+      const FALLBACK_2 = "gemini-2.5-flash"; // same as FALLBACK_1, no lite models
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
       // --- Gemini API ---
@@ -2339,7 +2339,7 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
         vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, mileage: vMileage } : null,
         property: type === "property" ? { type: pType, cause: pCause, area: pArea, sqft: pSqft, yearBuilt: pYearBuilt, address: pAddress } : null,
         createdAt: new Date().toISOString(),
-        aiModel: geminiTier === "pro" ? "Gemini 3.1 Pro" : "Gemini 3 Flash",
+        aiModel: "Gemini 3 Flash",
         appVersion: APP_VERSION,
       };
 
@@ -2631,27 +2631,10 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
         </div>
       )}
 
-      {/* AI Model Tier Selector */}
+      {/* AI Model info */}
       {type === "auto" && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 12, color: palette.textMuted, whiteSpace: "nowrap" }}>AI Model:</span>
-          <div style={{ display: "flex", flex: 1, background: palette.surfaceAlt, borderRadius: 8, padding: 2 }}>
-            {[
-              { key: "pro", label: "Pro", sub: "Gemini 3.1 Pro" },
-              { key: "regular", label: "Regular", sub: "Gemini 3 Flash" },
-            ].map(opt => (
-              <button key={opt.key} onClick={() => setGeminiTier(opt.key)} style={{
-                flex: 1, padding: "6px 8px", border: "none", borderRadius: 6, cursor: "pointer",
-                fontFamily: font, fontSize: 12, fontWeight: geminiTier === opt.key ? 600 : 400,
-                background: geminiTier === opt.key ? palette.accent : "transparent",
-                color: geminiTier === opt.key ? "#fff" : palette.textMuted,
-                transition: "all 0.2s",
-                boxShadow: geminiTier === opt.key ? "0 1px 4px rgba(0,0,0,0.2)" : "none",
-              }}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <span style={{ fontSize: 12, color: palette.textDim }}>AI Model: Gemini 3 Flash · 3 consensus runs</span>
         </div>
       )}
 
