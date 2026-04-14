@@ -102,6 +102,21 @@ export const ALWAYS_REPLACE = [
   "stop_lamp", "brake_light", "high_mount_stop_lamp", "third_brake_light",
   "daytime_running_lamp", "drl", "reflector",
   "emblem", "badge",
+  // Bumper covers — US industry replaces 70-80% of the time even at moderate damage
+  // Aftermarket parts are cheap ($280-$500), labor to repair often costs more than replacement
+  "front_bumper_cover", "rear_bumper_cover", "front_bumper", "rear_bumper",
+  "bumper_valance", "front_bumper_molding", "rear_bumper_molding",
+  "lower_valance_panel", "rear_valance_panel", "air_dam",
+];
+
+// --- Replace at MODERATE+ severity (repair only if minor cosmetic) ---
+// US body shops replace fenders/doors ~60% of the time at moderate damage
+// because labor to pull dents + repaint costs more than aftermarket panel + paint
+export const REPLACE_AT_MODERATE = [
+  "front_fender", "rear_fender", "fender",
+  "hood", "trunk_lid", "deck_lid", "tailgate", "liftgate",
+  "front_door_shell", "rear_door_shell", "door_skin", "outer_door_skin",
+  "door_outer_panel", "sliding_door",
 ];
 
 // --- Guaranteed structural pairs ---
@@ -296,12 +311,25 @@ export function deriveSeverity(indicators) {
 
 /**
  * Derive operation from component + severity.
- * ALWAYS_REPLACE → R&R; severe → R&R; else → Repair.
- * No Refinish/Blend here — paint ops added in pricing phase.
+ * US collision industry logic:
+ *   ALWAYS_REPLACE → R&R regardless of severity
+ *   REPLACE_AT_MODERATE → R&R at moderate+, Repair only at minor
+ *   Quarter panel → Repair unless severe (welded panel, expensive to replace)
+ *   Everything else → severe=R&R, else Repair
  */
 export function deriveOperation(component, severity) {
   const comp = (component || "").toLowerCase().replace(/_(lh|rh)$/i, "");
+  // Always replace: lights, glass, mirrors, sensors, bumper covers, etc.
   if (ALWAYS_REPLACE.some(p => comp.includes(p))) return "R&R";
+  // Replace at moderate+: fenders, hoods, doors — labor to repair > cost to replace
+  if (REPLACE_AT_MODERATE.some(p => comp.includes(p))) {
+    return severity === "minor" ? "Repair" : "R&R";
+  }
+  // Quarter panel exception: welded to body, repair preferred unless severe
+  // (replacing requires cutting/welding, 15-25 labor hours)
+  if (comp.includes("quarter_panel")) {
+    return severity === "severe" ? "R&R" : "Repair";
+  }
   if (severity === "severe") return "R&R";
   return "Repair";
 }

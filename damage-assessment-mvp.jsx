@@ -9,7 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
-const APP_VERSION = "0.9.5";
+const APP_VERSION = "0.9.6";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
