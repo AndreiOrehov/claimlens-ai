@@ -9,7 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
-const APP_VERSION = "0.9.8";
+const APP_VERSION = "0.9.9";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
@@ -685,7 +685,8 @@ function Dashboard({ user: initialUser, onLogout, onUserUpdate }) {
             }}>
               {[
                 { key: "auto", icon: <Icons.Car />, title: "Vehicle Damage", desc: "Collision, dents, scratches, glass damage", color: palette.accent },
-                { key: "property", icon: <Icons.Home />, title: "Property Damage", desc: "Water, fire, storm, structural damage", color: "#8B5CF6" },
+                // Property disabled — will be part of multi-party platform later
+                // { key: "property", icon: <Icons.Home />, title: "Property Damage", desc: "Water, fire, storm, structural damage", color: "#8B5CF6" },
               ].map((t, i) => (
                 <button key={t.key} onClick={() => startNewClaim(t.key)} style={{
                   flex: 1, padding: isMobile ? 20 : 24, borderRadius: 16, cursor: "pointer", textAlign: "left",
