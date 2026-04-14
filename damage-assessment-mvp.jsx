@@ -9,7 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
-const APP_VERSION = "0.9.6";
+const APP_VERSION = "0.9.7";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
@@ -1762,33 +1762,44 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
 
       console.log(`Starting ${NUM_RUNS} parallel runs (${PRIMARY_MODEL} → ${FALLBACK_1} → ${FALLBACK_2})...`);
 
-      const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) =>
-        fetchGeminiRun(i, PRIMARY_MODEL)
-          .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL}): OK`); return result; })
+      const runModels = []; // track which model answered each run
+      const runAttempts = []; // track all attempts per run (for debug PDF)
+      const geminiPromises = Array.from({ length: NUM_RUNS }, (_, i) => {
+        runAttempts[i] = [];
+        return fetchGeminiRun(i, PRIMARY_MODEL)
+          .then(result => { runModels[i] = PRIMARY_MODEL; runAttempts[i].push({ model: PRIMARY_MODEL, status: "OK" }); return result; })
           .catch(async (err) => {
-            console.warn(`Run ${i + 1} (${PRIMARY_MODEL}) failed: ${err.message} — retry in 3s...`);
+            runAttempts[i].push({ model: PRIMARY_MODEL, status: "FAIL", error: err.message });
             await delay(3000);
             return fetchGeminiRun(i, PRIMARY_MODEL)
-              .then(result => { console.log(`Run ${i + 1} (${PRIMARY_MODEL} retry): OK`); return result; })
+              .then(result => { runModels[i] = PRIMARY_MODEL; runAttempts[i].push({ model: PRIMARY_MODEL + " (retry)", status: "OK" }); return result; })
               .catch(async (err2) => {
-                console.warn(`Run ${i + 1} (${PRIMARY_MODEL} retry) failed: ${err2.message} — trying ${FALLBACK_1}...`);
+                runAttempts[i].push({ model: PRIMARY_MODEL + " (retry)", status: "FAIL", error: err2.message });
                 return fetchGeminiRun(i, FALLBACK_1)
-                  .then(result => { console.log(`Run ${i + 1} (${FALLBACK_1}): OK`); return result; })
+                  .then(result => { runModels[i] = FALLBACK_1; runAttempts[i].push({ model: FALLBACK_1, status: "OK" }); return result; })
                   .catch(async (err3) => {
-                    console.warn(`Run ${i + 1} (${FALLBACK_1}) failed: ${err3.message} — trying ${FALLBACK_2}...`);
+                    runAttempts[i].push({ model: FALLBACK_1, status: "FAIL", error: err3.message });
                     return fetchGeminiRun(i, FALLBACK_2)
-                      .then(result => { console.log(`Run ${i + 1} (${FALLBACK_2}): OK`); return result; })
-                      .catch(err4 => { console.error(`Run ${i + 1} ALL models failed:`, err4.message); return null; });
+                      .then(result => { runModels[i] = FALLBACK_2; runAttempts[i].push({ model: FALLBACK_2, status: "OK" }); return result; })
+                      .catch(err4 => { runAttempts[i].push({ model: FALLBACK_2, status: "FAIL", error: err4.message }); runModels[i] = "failed"; return null; });
                   });
               });
-          })
-      );
+          });
+      });
 
       const settled = await Promise.allSettled(geminiPromises);
       clearInterval(progressInterval);
       const validResults = settled
         .filter(r => r.status === "fulfilled" && r.value)
         .map(r => r.value);
+
+      // Build run detail string: "3/3 (3× gemini-3-flash-preview)" or "2/3 (2× gemini-3-flash-preview, 1× failed)"
+      const modelCounts = {};
+      runModels.forEach(m => { modelCounts[m] = (modelCounts[m] || 0) + 1; });
+      const runDetail = Object.entries(modelCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([model, count]) => `${count}× ${model.replace("gemini-", "").replace("-preview", "")}`)
+        .join(", ");
       console.log(`Valid results: ${validResults.length}/${NUM_RUNS}`);
       validResults.forEach((r, i) => console.log(`Run ${i + 1}: ${r.damages?.length || 0} damages, severity=${r.severity}, components:`, (r.damages || []).map(d => d.component).join(", ")));
 
@@ -2253,7 +2264,8 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
       };
 
       const assessment = mergeAssessments(validResults);
-      assessment.geminiRuns = `${validResults.length}/${NUM_RUNS}`;
+      assessment.geminiRuns = `${validResults.length}/${NUM_RUNS} (${runDetail})`;
+      assessment._runAttempts = runAttempts; // debug: all attempts per run
       console.log(`Merged assessment: ${assessment.damages.length} damages, ${assessment._consensus}`);
       console.log("Merged components:", assessment.damages.map(d => d.component).join(", "));
 
@@ -3065,6 +3077,12 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
       <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim && claim.vehicle.trim !== "Base" ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.engine ? ` · ${claim.vehicle.engine}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
     </div>
   </div>
+
+  ${a._runAttempts ? `
+  <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:9px;color:#64748B;line-height:1.6;">
+    <strong style="color:#475569;">API Run Log (debug):</strong><br/>
+    ${a._runAttempts.map((attempts, i) => `Run ${i + 1}: ${attempts.map(a => `${a.model} → ${a.status}${a.error ? ` (${a.error.substring(0, 60)})` : ""}`).join(" → ")}`).join("<br/>")}
+  </div>` : ""}
 
   <div class="summary-bar">
     <div class="stat-box">
