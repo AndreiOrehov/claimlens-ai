@@ -1648,6 +1648,12 @@ HEADLAMP & TAIL LAMP RULE (MANDATORY):
 - In a rear collision, BOTH tail lamps are almost always affected. Inspect each one individually.
 - A lamp that is intact but displaced from its mounting position due to surrounding panel damage IS damaged — report it as misaligned.
 
+QUARTER PANEL & FENDER INSPECTION (MANDATORY):
+- Quarter panels are where the rear bumper meets the body side. In ANY rear collision, you MUST closely inspect BOTH rear quarter panels at the bumper-to-body junction for dents, creases, scuffs, paint damage, or misalignment — even subtle ones.
+- Front fenders absorb energy from frontal impacts. In ANY frontal collision, you MUST closely inspect BOTH front fenders for buckling, gap misalignment at the hood/door/headlamp interfaces, and paint cracking.
+- These panels often show subtle damage (small dents, creases, gap changes) that is easy to overlook — look carefully at panel gaps and body lines.
+- Report each side separately with _LH or _RH suffix.
+
 COMPONENT IDENTIFICATION RULES (CRITICAL):
 - FLAT/DEFLATED/DAMAGED TIRE: Report as "wheel_tire_LH" or "wheel_tire_RH" — NEVER as bumper, fender, or any other component.
 - MISSING DOOR GLASS: Report as "side_window_glass_LH" or "side_window_glass_RH" — NOT as "front_door_shell" or "rear_door_shell".
