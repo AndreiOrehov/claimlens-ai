@@ -9,7 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
-const APP_VERSION = "0.9.1";
+const APP_VERSION = "0.9.5";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
@@ -642,7 +642,7 @@ function Dashboard({ user: initialUser, onLogout, onUserUpdate }) {
           }} />
           <div>
             <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", display: "block", lineHeight: 1.2 }}>ClaimPilot AI</span>
-            <span style={{ fontSize: 8.5, color: palette.textDim, letterSpacing: "0.12em", textTransform: "uppercase", display: "block" }}>Estimate Before You Inspect</span>
+            <span style={{ fontSize: 8.5, color: palette.textDim, letterSpacing: "0.12em", textTransform: "uppercase", display: "block" }}>Estimate Before You Inspect · v{APP_VERSION}</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", position: "relative" }}>
