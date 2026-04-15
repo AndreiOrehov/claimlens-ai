@@ -967,6 +967,9 @@ function NewClaimView({ onSubmit, initialType }) {
         reader.readAsDataURL(file);
       });
       const mimeType = file.type || "image/jpeg";
+      // Strategy: ask Gemini to read ALL text from the image (general OCR),
+      // then we extract the VIN from the text using regex.
+      // This is more reliable than asking "find the VIN" which often fails.
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
       const resp = await fetch(geminiUrl, {
         method: "POST",
@@ -974,33 +977,34 @@ function NewClaimView({ onSubmit, initialType }) {
         body: JSON.stringify({
           contents: [{ parts: [
             { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: `Read ALL text visible in this image. Then find and return the VIN (Vehicle Identification Number).
-The VIN is a 17-character code made of letters and digits. It does NOT contain I, O, or Q.
-On manufacturer labels, the VIN is usually the longest alphanumeric code, often on its own line.
-Do NOT return the MODEL code (like X51ZC69) or any other short code.
-Return ONLY the 17-character VIN, nothing else. Example format: 1G1ZB5STXSF113825` },
+            { text: "Read and transcribe ALL text visible in this image. Return every line of text exactly as printed, preserving the original layout. Include all numbers, codes, and labels." },
           ]}],
-          generationConfig: { temperature: 0, maxOutputTokens: 100 },
+          generationConfig: { temperature: 0, maxOutputTokens: 500 },
         }),
       });
       const data = await resp.json();
-      const rawTxt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().toUpperCase();
-      console.log("VIN OCR raw response:", rawTxt);
-      // Try to extract a valid VIN from the response — Gemini may return extra text
-      const cleaned = rawTxt.replace(/[^A-HJ-NPR-Z0-9]/g, "");
-      // If cleaned is exactly 17 chars, use it
-      let extractedVin = isValidVin(cleaned) ? cleaned : null;
-      // Otherwise, try to find a 17-char VIN substring in the raw text
-      if (!extractedVin) {
-        const match = rawTxt.replace(/\s/g, "").match(/[A-HJ-NPR-Z0-9]{17}/);
-        if (match) extractedVin = match[0];
+      const rawTxt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+      console.log("VIN OCR raw text:", rawTxt);
+      // Extract VIN from full OCR text using regex
+      // VIN = exactly 17 alphanumeric chars (no I, O, Q), starting with digit or letter
+      const upperTxt = rawTxt.toUpperCase();
+      // Try to find VIN pattern in text — look for 17-char sequences
+      const vinPatterns = upperTxt.match(/\b[A-HJ-NPR-Z0-9]{17}\b/g) || [];
+      // Also try without word boundaries (VIN may be adjacent to other text)
+      if (vinPatterns.length === 0) {
+        const noSpaces = upperTxt.replace(/[\s\-\.]/g, "");
+        const seqMatch = noSpaces.match(/[A-HJ-NPR-Z0-9]{17}/g);
+        if (seqMatch) vinPatterns.push(...seqMatch);
       }
-      if (extractedVin) {
-        setVin(extractedVin);
-        console.log(`VIN OCR: ${extractedVin}`);
-        await decodeVin(extractedVin);
+      // Filter: real VINs start with 1-5 (US), J (Japan), K (Korea), S (UK), W (Germany), etc.
+      const likelyVin = vinPatterns.find(v => /^[1-9A-HJ-NPR-Z]/.test(v)) || vinPatterns[0];
+      if (likelyVin && isValidVin(likelyVin)) {
+        setVin(likelyVin);
+        console.log(`VIN OCR extracted: ${likelyVin} (from ${vinPatterns.length} candidates)`);
+        await decodeVin(likelyVin);
       } else {
-        setVinError(`Could not read VIN from photo (got: "${rawTxt.substring(0, 30)}")`);
+        console.log("VIN OCR candidates:", vinPatterns);
+        setVinError(`Could not find VIN in photo. ${vinPatterns.length > 0 ? `Found: ${vinPatterns.join(", ")}` : "No 17-char codes detected."} Try entering VIN manually.`);
       }
     } catch (err) {
       setVinError("VIN scan failed: " + err.message);
