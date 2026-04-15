@@ -967,21 +967,20 @@ function NewClaimView({ onSubmit, initialType }) {
         reader.readAsDataURL(file);
       });
       const mimeType = file.type || "image/jpeg";
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
       const resp = await fetch(geminiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [
             { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: `Extract the VIN (Vehicle Identification Number) from this image.
-The VIN is exactly 17 characters long, contains only letters (A-H, J-N, P, R-Z) and digits (0-9). No I, O, or Q.
-The VIN is usually printed on a label, stamped on metal, or shown on a dashboard plate.
-It may appear near text like "VIN:", "VIN", or on a manufacturer label with GVWR data.
-Ignore other codes like MODEL numbers, serial numbers, or barcodes.
-Return ONLY the 17-character VIN string, nothing else.` },
+            { text: `Read ALL text visible in this image. Then find and return the VIN (Vehicle Identification Number).
+The VIN is a 17-character code made of letters and digits. It does NOT contain I, O, or Q.
+On manufacturer labels, the VIN is usually the longest alphanumeric code, often on its own line.
+Do NOT return the MODEL code (like X51ZC69) or any other short code.
+Return ONLY the 17-character VIN, nothing else. Example format: 1G1ZB5STXSF113825` },
           ]}],
-          generationConfig: { temperature: 0, maxOutputTokens: 50 },
+          generationConfig: { temperature: 0, maxOutputTokens: 100 },
         }),
       });
       const data = await resp.json();
