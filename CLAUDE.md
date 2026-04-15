@@ -1,5 +1,11 @@
 # ClaimPilot AI — Project Context
 
+## Rules
+- When user says "сохранись" — update this CLAUDE.md with current project state, decisions, and progress
+- Periodically update this file during long work sessions (every major milestone)
+- Bump APP_VERSION on every significant code change
+- Always keep CLAUDE.md in sync with actual project state
+
 ## Project Structure
 - **claimlens-ai** (this repo) — Vite SPA, MVP vehicle damage assessment
 - **claimlens-platform** (`C:\Users\oreho\Claude\Insurance\claimlens-platform`) — Next.js fullstack platform (separate repo: AndreiOrehov/claimlens-platform)
