@@ -949,9 +949,30 @@ function NewClaimView({ onSubmit, initialType }) {
           || r.Model;
         setVModel(match);
       }
-      if (r.Trim) setVTrim(r.Trim);
-      const engineParts = [r.DisplacementL ? `${r.DisplacementL}L` : "", r.EngineConfiguration || "", r.EngineCylinders ? `${r.EngineCylinders}-cyl` : "", r.FuelTypePrimary || ""].filter(Boolean);
-      if (engineParts.length) setVEngine(engineParts.join(" "));
+      // Match NHTSA trim to our VEHICLE_TRIMS DB
+      if (r.Trim) {
+        const dbEntry = VEHICLE_DB[dbMakeMatch];
+        const modelMatch = dbEntry ? Object.keys(dbEntry).find(m => m.toLowerCase() === (r.Model || "").toLowerCase()) : null;
+        const dbTrims = (modelMatch && VEHICLE_TRIMS[dbMakeMatch]?.[modelMatch]) || [];
+        const nhtsaTrim = r.Trim.toLowerCase();
+        const trimMatch = dbTrims.find(t => t.toLowerCase() === nhtsaTrim)
+          || dbTrims.find(t => nhtsaTrim.includes(t.toLowerCase()))
+          || dbTrims.find(t => t.toLowerCase().includes(nhtsaTrim.split(/[\s(]/)[0]))
+          || r.Trim;
+        setVTrim(trimMatch);
+      }
+      // Match NHTSA engine to our VEHICLE_SPECS DB
+      const nhtsaEngine = [r.DisplacementL ? `${r.DisplacementL}L` : "", r.EngineConfiguration || "", r.EngineCylinders ? `${r.EngineCylinders}-cyl` : "", r.FuelTypePrimary || ""].filter(Boolean).join(" ");
+      if (nhtsaEngine) {
+        const dbEntry = VEHICLE_DB[dbMakeMatch];
+        const modelMatch = dbEntry ? Object.keys(dbEntry).find(m => m.toLowerCase() === (r.Model || "").toLowerCase()) : null;
+        const dbEngines = (modelMatch && VEHICLE_SPECS[dbMakeMatch]?.[modelMatch]?.engines) || [];
+        const engMatch = dbEngines.find(e => e.toLowerCase() === nhtsaEngine.toLowerCase())
+          || dbEngines.find(e => nhtsaEngine.toLowerCase().includes(e.toLowerCase().split(/\s/)[0]))
+          || dbEngines.find(e => e.toLowerCase().includes(r.DisplacementL || "---"))
+          || nhtsaEngine;
+        setVEngine(engMatch);
+      }
       setVin(v);
       setVinDecoded(true);
       console.log(`VIN decoded: ${v} → ${r.ModelYear} ${r.Make} ${r.Model} ${r.Trim || ""}`);
