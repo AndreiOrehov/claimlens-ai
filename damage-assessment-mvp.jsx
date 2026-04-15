@@ -1167,8 +1167,11 @@ Do not skip any text, even if it is small or partially obscured.`;
     .filter(([, range]) => +vYear >= range[0] && +vYear <= range[1])
     .map(([name]) => name).sort() : [];
 
-  const trims = (vMake && vModel && VEHICLE_TRIMS[vMake]?.[vModel]) || [];
-  const engines = (vMake && vModel && VEHICLE_SPECS[vMake]?.[vModel]?.engines) || [];
+  const dbTrims = (vMake && vModel && VEHICLE_TRIMS[vMake]?.[vModel]) || [];
+  // If VIN decoded a trim not in our DB, add it to options so Select can show it
+  const trims = (vTrim && !dbTrims.includes(vTrim)) ? [...dbTrims, vTrim] : dbTrims;
+  const dbEngines = (vMake && vModel && VEHICLE_SPECS[vMake]?.[vModel]?.engines) || [];
+  const engines = (vEngine && !dbEngines.includes(vEngine)) ? [...dbEngines, vEngine] : dbEngines;
   const handleMakeChange = (val) => { setVMake(val); setVYear(""); setVModel(""); setVTrim(""); setVEngine(""); };
   const handleYearChange = (val) => { setVYear(val); setVModel(""); setVTrim(""); setVEngine(""); };
   const handleModelChange = (val) => {
