@@ -967,24 +967,64 @@ function NewClaimView({ onSubmit, initialType }) {
         reader.readAsDataURL(file);
       });
       const mimeType = file.type || "image/jpeg";
-      // Strategy: ask Gemini to read ALL text from the image (general OCR),
-      // then we extract the VIN from the text using regex.
-      // This is more reliable than asking "find the VIN" which often fails.
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
-      const resp = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: "Read and transcribe ALL text visible in this image. Return every line of text exactly as printed, preserving the original layout. Include all numbers, codes, and labels." },
-          ]}],
-          generationConfig: { temperature: 0, maxOutputTokens: 500 },
-        }),
-      });
-      const data = await resp.json();
-      const rawTxt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
-      console.log("VIN OCR raw text:", rawTxt);
+      const ocrPrompt = `This is a photo of a vehicle label, sticker, or plate.
+Carefully read and transcribe EVERY line of text visible in this image, from top to bottom.
+Pay special attention to long alphanumeric codes — these may be VIN numbers.
+Include ALL numbers, codes, model numbers, and serial numbers exactly as printed.
+Do not skip any text, even if it is small or partially obscured.`;
+
+      let rawTxt = "";
+
+      // Try OpenAI Vision first (best OCR accuracy)
+      const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (openaiKey) {
+        try {
+          const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: [
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+                { type: "text", text: ocrPrompt },
+              ]}],
+              max_tokens: 800,
+            }),
+          });
+          const data = await resp.json();
+          rawTxt = (data.choices?.[0]?.message?.content || "").trim();
+          console.log("VIN OCR (OpenAI):", rawTxt);
+        } catch (e) {
+          console.warn("VIN OCR OpenAI failed:", e.message);
+        }
+      }
+
+      // Fallback to Gemini if OpenAI didn't work
+      if (rawTxt.length < 30) {
+        const geminiModels = ["gemini-2.5-flash", "gemini-3-flash-preview"];
+        for (const ocrModel of geminiModels) {
+          try {
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ocrModel}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+            const resp = await fetch(geminiUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [
+                  { inline_data: { mime_type: mimeType, data: base64 } },
+                  { text: ocrPrompt },
+                ]}],
+                generationConfig: { temperature: 0, maxOutputTokens: 800 },
+              }),
+            });
+            const data = await resp.json();
+            rawTxt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim();
+            console.log(`VIN OCR (${ocrModel}):`, rawTxt);
+            if (rawTxt.length > 30) break;
+          } catch (e) {
+            console.warn(`VIN OCR ${ocrModel} failed:`, e.message);
+          }
+        }
+      }
       // Extract VIN from full OCR text using regex
       // VIN = exactly 17 alphanumeric chars (no I, O, Q), starting with digit or letter
       const upperTxt = rawTxt.toUpperCase();
