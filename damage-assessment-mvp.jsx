@@ -935,12 +935,18 @@ function NewClaimView({ onSubmit, initialType }) {
       if (!r || r.ErrorCode?.includes("0")) {
         // ErrorCode "0" = success in NHTSA API
       }
-      if (r.Make) setVMake(r.Make);
-      if (r.ModelYear) setVYear(r.ModelYear);
+      // Normalize NHTSA Make to match our VEHICLE_DB (NHTSA: "CHEVROLET" → DB: "Chevrolet")
+      const nhtsaMake = r.Make || "";
+      const dbMakeMatch = Object.keys(VEHICLE_DB).find(k => k.toLowerCase() === nhtsaMake.toLowerCase()) || nhtsaMake;
+      if (dbMakeMatch) setVMake(dbMakeMatch);
+      if (r.ModelYear) setVYear(String(r.ModelYear));
       if (r.Model) {
-        // Try to match with our vehicle DB
-        const dbModels = VEHICLE_DB[r.Make] ? Object.keys(VEHICLE_DB[r.Make]).flatMap(m => Object.keys(VEHICLE_DB[r.Make][m]).length > 0 ? [m] : []) : [];
-        const match = dbModels.find(m => m.toLowerCase() === r.Model.toLowerCase()) || r.Model;
+        // Try to match NHTSA model name with our vehicle DB
+        const dbEntry = VEHICLE_DB[dbMakeMatch];
+        const dbModelNames = dbEntry ? Object.keys(dbEntry) : [];
+        const match = dbModelNames.find(m => m.toLowerCase() === r.Model.toLowerCase())
+          || dbModelNames.find(m => r.Model.toLowerCase().includes(m.toLowerCase()))
+          || r.Model;
         setVModel(match);
       }
       if (r.Trim) setVTrim(r.Trim);
