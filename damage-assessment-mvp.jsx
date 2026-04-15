@@ -974,19 +974,34 @@ function NewClaimView({ onSubmit, initialType }) {
         body: JSON.stringify({
           contents: [{ parts: [
             { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: "Extract the 17-character VIN number from this image. Return ONLY the VIN string, nothing else. A valid VIN is exactly 17 alphanumeric characters (no I, O, or Q)." },
+            { text: `Extract the VIN (Vehicle Identification Number) from this image.
+The VIN is exactly 17 characters long, contains only letters (A-H, J-N, P, R-Z) and digits (0-9). No I, O, or Q.
+The VIN is usually printed on a label, stamped on metal, or shown on a dashboard plate.
+It may appear near text like "VIN:", "VIN", or on a manufacturer label with GVWR data.
+Ignore other codes like MODEL numbers, serial numbers, or barcodes.
+Return ONLY the 17-character VIN string, nothing else.` },
           ]}],
           generationConfig: { temperature: 0, maxOutputTokens: 50 },
         }),
       });
       const data = await resp.json();
-      const txt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
-      if (isValidVin(txt)) {
-        setVin(txt);
-        console.log(`VIN OCR: ${txt}`);
-        await decodeVin(txt);
+      const rawTxt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().toUpperCase();
+      console.log("VIN OCR raw response:", rawTxt);
+      // Try to extract a valid VIN from the response — Gemini may return extra text
+      const cleaned = rawTxt.replace(/[^A-HJ-NPR-Z0-9]/g, "");
+      // If cleaned is exactly 17 chars, use it
+      let extractedVin = isValidVin(cleaned) ? cleaned : null;
+      // Otherwise, try to find a 17-char VIN substring in the raw text
+      if (!extractedVin) {
+        const match = rawTxt.replace(/\s/g, "").match(/[A-HJ-NPR-Z0-9]{17}/);
+        if (match) extractedVin = match[0];
+      }
+      if (extractedVin) {
+        setVin(extractedVin);
+        console.log(`VIN OCR: ${extractedVin}`);
+        await decodeVin(extractedVin);
       } else {
-        setVinError(`Could not read VIN from photo (got: "${txt.substring(0, 20)}")`);
+        setVinError(`Could not read VIN from photo (got: "${rawTxt.substring(0, 30)}")`);
       }
     } catch (err) {
       setVinError("VIN scan failed: " + err.message);
