@@ -9,7 +9,7 @@ import { LABOR_TIMES, getLaborHours, getRefinishHours, getRepairHours, getClassM
 // ============================================================
 // ClaimPilot AI — Insurance Damage Assessment MVP
 // ============================================================
-const APP_VERSION = "0.9.9";
+const APP_VERSION = "1.0.0";
 
 // --- Responsive hook ---
 function useIsMobile(breakpoint = 640) {
@@ -912,6 +912,88 @@ function NewClaimView({ onSubmit, initialType }) {
   const [error, setError] = useState("");
   // AI model is fixed: gemini-3-flash-preview → gemini-2.5-flash fallback
   const fileRef = useRef(null);
+
+  // VIN
+  const [vin, setVin] = useState("");
+  const [vinLoading, setVinLoading] = useState(false);
+  const [vinError, setVinError] = useState("");
+  const [vinDecoded, setVinDecoded] = useState(false);
+  const vinFileRef = useRef(null);
+
+  // VIN validation: 17 alphanumeric chars, no I/O/Q
+  const isValidVin = (v) => /^[A-HJ-NPR-Z0-9]{17}$/i.test(v);
+
+  // NHTSA VIN decode → auto-fill vehicle fields
+  const decodeVin = async (vinStr) => {
+    const v = (vinStr || vin).trim().toUpperCase();
+    if (!isValidVin(v)) { setVinError("VIN must be 17 characters (no I, O, Q)"); return; }
+    setVinLoading(true); setVinError("");
+    try {
+      const resp = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${v}?format=json`);
+      const data = await resp.json();
+      const r = data.Results?.[0];
+      if (!r || r.ErrorCode?.includes("0")) {
+        // ErrorCode "0" = success in NHTSA API
+      }
+      if (r.Make) setVMake(r.Make);
+      if (r.ModelYear) setVYear(r.ModelYear);
+      if (r.Model) {
+        // Try to match with our vehicle DB
+        const dbModels = VEHICLE_DB[r.Make] ? Object.keys(VEHICLE_DB[r.Make]).flatMap(m => Object.keys(VEHICLE_DB[r.Make][m]).length > 0 ? [m] : []) : [];
+        const match = dbModels.find(m => m.toLowerCase() === r.Model.toLowerCase()) || r.Model;
+        setVModel(match);
+      }
+      if (r.Trim) setVTrim(r.Trim);
+      const engineParts = [r.DisplacementL ? `${r.DisplacementL}L` : "", r.EngineConfiguration || "", r.EngineCylinders ? `${r.EngineCylinders}-cyl` : "", r.FuelTypePrimary || ""].filter(Boolean);
+      if (engineParts.length) setVEngine(engineParts.join(" "));
+      setVin(v);
+      setVinDecoded(true);
+      console.log(`VIN decoded: ${v} → ${r.ModelYear} ${r.Make} ${r.Model} ${r.Trim || ""}`);
+    } catch (err) {
+      setVinError("Failed to decode VIN: " + err.message);
+    } finally {
+      setVinLoading(false);
+    }
+  };
+
+  // VIN OCR: send photo to Gemini, extract VIN text
+  const scanVinFromPhoto = async (file) => {
+    setVinLoading(true); setVinError("");
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const mimeType = file.type || "image/jpeg";
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+      const resp = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: mimeType, data: base64 } },
+            { text: "Extract the 17-character VIN number from this image. Return ONLY the VIN string, nothing else. A valid VIN is exactly 17 alphanumeric characters (no I, O, or Q)." },
+          ]}],
+          generationConfig: { temperature: 0, maxOutputTokens: 50 },
+        }),
+      });
+      const data = await resp.json();
+      const txt = (data.candidates?.[0]?.content?.parts?.[0]?.text || "").trim().toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
+      if (isValidVin(txt)) {
+        setVin(txt);
+        console.log(`VIN OCR: ${txt}`);
+        await decodeVin(txt);
+      } else {
+        setVinError(`Could not read VIN from photo (got: "${txt.substring(0, 20)}")`);
+      }
+    } catch (err) {
+      setVinError("VIN scan failed: " + err.message);
+    } finally {
+      setVinLoading(false);
+    }
+  };
 
   // Vehicle fields
   const [vMake, setVMake] = useState("");
@@ -2337,7 +2419,7 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
         pricingSource: mergedPricing?.source || "reference",
         assessment,
         validation,
-        vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, mileage: vMileage } : null,
+        vehicle: type === "auto" ? { make: vMake, model: vModel, year: vYear, trim: vTrim || "Base", engine: vEngine, mileage: vMileage, vin: vin || null } : null,
         property: type === "property" ? { type: pType, cause: pCause, area: pArea, sqft: pSqft, yearBuilt: pYearBuilt, address: pAddress } : null,
         createdAt: new Date().toISOString(),
         aiModel: "Gemini 3 Flash",
@@ -2381,6 +2463,73 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
         </div>
       </div>
 
+      {/* VIN Input */}
+      {type === "auto" && (
+        <div style={{
+          padding: 16, borderRadius: 12, border: `1px solid ${vinDecoded ? palette.accent + "40" : palette.border}`,
+          background: vinDecoded ? palette.accentSoft : palette.surface, marginBottom: 12,
+          transition: "all 0.3s",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: palette.textMuted, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            VIN (optional — auto-fills vehicle info)
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              value={vin}
+              onChange={(e) => { setVin(e.target.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/gi, "").substring(0, 17)); setVinDecoded(false); setVinError(""); }}
+              placeholder="e.g. 7SAYGDEF7PF858597"
+              maxLength={17}
+              style={{
+                flex: 1, padding: "10px 12px", borderRadius: 8, border: `1px solid ${vinError ? palette.danger : palette.border}`,
+                background: palette.bg, color: palette.text, fontFamily: "monospace", fontSize: 14,
+                letterSpacing: "0.08em", outline: "none",
+              }}
+              onKeyDown={(e) => { if (e.key === "Enter" && isValidVin(vin)) decodeVin(); }}
+            />
+            <button
+              onClick={() => vinFileRef.current?.click()}
+              disabled={vinLoading}
+              title="Scan VIN from photo"
+              style={{
+                padding: "10px 12px", borderRadius: 8, border: `1px solid ${palette.border}`,
+                background: palette.surfaceAlt, color: palette.textMuted, cursor: "pointer",
+                fontFamily: font, fontSize: 12, display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <Icons.Camera /> Scan
+            </button>
+            <input
+              ref={vinFileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: "none" }}
+              onChange={(e) => { if (e.target.files?.[0]) scanVinFromPhoto(e.target.files[0]); e.target.value = ""; }}
+            />
+            <button
+              onClick={() => decodeVin()}
+              disabled={vinLoading || !isValidVin(vin) || vinDecoded}
+              style={{
+                padding: "10px 16px", borderRadius: 8, border: "none",
+                background: isValidVin(vin) && !vinDecoded ? palette.accent : palette.surfaceAlt,
+                color: isValidVin(vin) && !vinDecoded ? "#fff" : palette.textDim,
+                cursor: isValidVin(vin) && !vinDecoded ? "pointer" : "not-allowed",
+                fontFamily: font, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
+              }}
+            >
+              {vinLoading ? "Decoding..." : vinDecoded ? "Filled ✓" : "Auto-fill"}
+            </button>
+          </div>
+          {vinError && (
+            <div style={{ marginTop: 6, fontSize: 11, color: palette.danger }}>{vinError}</div>
+          )}
+          {vin.length > 0 && vin.length < 17 && (
+            <div style={{ marginTop: 6, fontSize: 11, color: palette.textDim }}>{vin.length}/17 characters</div>
+          )}
+        </div>
+      )}
+
       {/* Vehicle Detail Fields */}
       {type === "auto" && (
         <div style={{
@@ -2392,7 +2541,7 @@ ${type === "auto" ? `4. Do NOT include any dollar amounts, hours, rates, or cost
             textAlign: "center", textTransform: "uppercase", letterSpacing: "0.12em",
             borderBottom: `1px solid ${palette.border}`,
           }}>
-            Vehicle Information
+            Vehicle Information {vinDecoded && <span style={{ fontSize: 10, color: palette.accent, fontWeight: 400 }}>(from VIN)</span>}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <Select label="Make *" value={vMake} onChange={handleMakeChange} options={makes} placeholder="Select make..." />
@@ -2774,6 +2923,7 @@ function ReportView({ claim, onBack, isPro = false }) {
     report += `Date: ${new Date(claim.createdAt).toLocaleString()}\n`;
     report += `Build: v${APP_VERSION}\n`;
     report += `Type: ${claim.type === "auto" ? "Vehicle" : "Property"} Damage\n`;
+    if (claim.vehicle?.vin) report += `VIN: ${claim.vehicle.vin}\n`;
     report += `Location: ${claim.location || "Not specified"}\n`;
     report += `Severity: ${a.severity?.toUpperCase()}\n`;
     report += `Confidence: ${Math.round((a.confidence || 0) * 100)}%\n\n`;
@@ -3058,7 +3208,7 @@ ${!isPro ? '<div class="watermark">FREE ESTIMATE</div>' : ''}
       <strong>Report ID:</strong> ${claim.id}<br/>
       <strong>Date:</strong> ${new Date(claim.createdAt).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })} at ${new Date(claim.createdAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}<br/>
       <strong>Build:</strong> v${APP_VERSION}${claim.aiModel ? ` · ${claim.aiModel}` : ""}${a.geminiRuns ? ` · Runs: ${a.geminiRuns}` : ""}<br/>
-      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim && claim.vehicle.trim !== "Base" ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.engine ? ` · ${claim.vehicle.engine}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
+      <strong>Type:</strong> ${claim.type === "auto" ? "Vehicle Damage" : "Property Damage"}${claim.vehicle?.make ? `<br/><strong>Vehicle:</strong> ${claim.vehicle.year} ${claim.vehicle.make} ${claim.vehicle.model}${claim.vehicle.trim && claim.vehicle.trim !== "Base" ? ` ${claim.vehicle.trim}` : ""}${claim.vehicle.engine ? ` · ${claim.vehicle.engine}` : ""}${claim.vehicle.mileage ? ` (${parseInt(claim.vehicle.mileage).toLocaleString()} mi)` : ""}` : ""}${claim.vehicle?.vin ? `<br/><strong>VIN:</strong> ${claim.vehicle.vin}` : ""}${claim.property?.type ? `<br/><strong>Property:</strong> ${PROPERTY_TYPES.find(p=>p.value===claim.property.type)?.label || claim.property.type}` : ""}${claim.property?.address ? `<br/><strong>Address:</strong> ${claim.property.address}` : ""}${claim.property?.cause ? `<br/><strong>Cause:</strong> ${DAMAGE_CAUSES.find(c=>c.value===claim.property.cause)?.label || claim.property.cause}` : ""}${claim.location ? `<br/><strong>Location:</strong> ${claim.location}` : ""}
     </div>
   </div>
 
